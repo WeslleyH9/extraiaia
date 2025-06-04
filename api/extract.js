@@ -2,10 +2,45 @@
 import formidable from 'formidable';
 import fs from 'fs/promises';
 import mammoth from 'mammoth';
-// Importa a versão 'legacy' do pdfjs-dist que tende a funcionar melhor em Node.js
-// sem a necessidade de configurar um 'worker' separado explicitamente.
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
+// --- INÍCIO DO BLOCO DE DIAGNÓSTICO PDFJS-DIST ---
+let pdfjsLibModule;
+let getDocumentFunction;
+let pdfjsErrorMessage = "pdfjs-dist não pôde ser carregado.";
 
+try {
+    console.log("Tentando importar 'pdfjs-dist/legacy/build/pdf.js'...");
+    const legacyPdfjs = await import('pdfjs-dist/legacy/build/pdf.js');
+    console.log("'pdfjs-dist/legacy/build/pdf.js' importado. Tipo de getDocument:", typeof legacyPdfjs.getDocument);
+    if (typeof legacyPdfjs.getDocument === 'function') {
+        pdfjsLibModule = legacyPdfjs;
+        getDocumentFunction = legacyPdfjs.getDocument;
+        pdfjsErrorMessage = null; // Sucesso
+    } else {
+        pdfjsErrorMessage = "'legacy/build/pdf.js': getDocument não é uma função.";
+    }
+} catch (e1) {
+    console.error("Erro ao importar 'pdfjs-dist/legacy/build/pdf.js':", e1.message);
+    pdfjsErrorMessage = `Erro legacy: ${e1.message}`;
+    try {
+        console.log("Tentando importar 'pdfjs-dist' (principal)...");
+        const mainPdfjs = await import('pdfjs-dist');
+        console.log("'pdfjs-dist' (principal) importado. Tipo de getDocument:", typeof mainPdfjs.getDocument);
+        if (typeof mainPdfjs.getDocument === 'function') {
+            pdfjsLibModule = mainPdfjs;
+            getDocumentFunction = mainPdfjs.getDocument;
+            pdfjsErrorMessage = null; // Sucesso
+            // Se a importação principal funcionar, pode precisar do worker, mas o erro atual é MODULE_NOT_FOUND
+            console.warn("AVISO: Usando a build principal de pdfjs-dist. Pode precisar de configuração de worker se o erro mudar.");
+        } else {
+             pdfjsErrorMessage = `'pdfjs-dist' (principal): getDocument não é uma função. Conteúdo: ${JSON.stringify(mainPdfjs)}`;
+        }
+    } catch (e2) {
+        console.error("Erro ao importar 'pdfjs-dist' (principal):", e2.message);
+        pdfjsErrorMessage = pdfjsErrorMessage + ` | Erro principal: ${e2.message}`;
+    }
+}
+console.log("Status final do carregamento de pdfjs-dist:", pdfjsErrorMessage || "Carregado com sucesso!");
+// --- FIM DO BLOCO DE DIAGNÓSTICO PDFJS-DIST ---
 export const config = {
     api: {
         bodyParser: false, // Necessário para o formidable processar o upload
