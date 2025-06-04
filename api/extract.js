@@ -4,10 +4,7 @@ import fs from 'fs/promises';
 import mammoth from 'mammoth';
 // Importa a versão 'legacy' do pdfjs-dist que tende a funcionar melhor em Node.js
 // sem a necessidade de configurar um 'worker' separado explicitamente.
-import * as pdfjsLib from 'pdfjs-dist';
-
-console.log('Conteúdo de pdfjsLib:', pdfjsLib);
-console.log('Tipo de pdfjsLib.getDocument:', typeof pdfjsLib.getDocument);
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
 
 export const config = {
     api: {
@@ -15,15 +12,12 @@ export const config = {
     },
 };
 
-// Função auxiliar para extrair texto de PDF usando pdfjs-dist
+
 async function extractTextFromPdf(filePath) {
-    // Adicionamos uma verificação extra aqui
-    if (typeof pdfjsLib.getDocument !== 'function') {
-        console.error('pdfjsLib.getDocument não é uma função! Verifique a importação de pdfjs-dist.');
-        throw new Error('Falha ao carregar a biblioteca PDF. getDocument não está disponível.');
-    }
+  
 
     const dataBuffer = await fs.readFile(filePath);
+    
     const pdfDocument = await pdfjsLib.getDocument({ data: new Uint8Array(dataBuffer) }).promise;
 
     let fullText = "";
