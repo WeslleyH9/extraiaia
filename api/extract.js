@@ -1,16 +1,34 @@
 // api/extract.js
-import formidable from 'formidable'; // Para lidar com o upload de arquivos
-import fs from 'fs/promises'; // Para interagir com o sistema de arquivos (se necessário)
-import pdf from 'pdf-parse'; // Para ler PDFs
-import mammoth from 'mammoth'; // Para ler DOCX
+import formidable from 'formidable';
+import fs from 'fs/promises';
+import mammoth from 'mammoth';
+// Importa a versão 'legacy' do pdfjs-dist que tende a funcionar melhor em Node.js
+// sem a necessidade de configurar um 'worker' separado explicitamente.
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
 
-// Esta configuração diz ao Vercel para não analisar o corpo da requisição por padrão,
-// pois o formidable fará isso.
 export const config = {
     api: {
-        bodyParser: false,
+        bodyParser: false, // Necessário para o formidable processar o upload
     },
 };
+
+// Função auxiliar para extrair texto de PDF usando pdfjs-dist
+async function extractTextFromPdf(filePath) {
+    const dataBuffer = await fs.readFile(filePath);
+    // pdfjsLib.getDocument espera um Uint8Array ou um objeto com 'data'
+    const pdfDocument = await pdfjsLib.getDocument({ data: new Uint8Array(dataBuffer) }).promise;
+    
+    let fullText = "";
+    for (let i = 1; i <= pdfDocument.numPages; i++) {
+        const page = await pdfDocument.getPage(i);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items.map(item => item.str).join(" ");
+        fullText += pageText + "\n"; // Adiciona uma nova linha entre as páginas
+        // É uma boa prática limpar a página para liberar memória, especialmente com muitos PDFs/páginas
+        page.cleanup(); 
+    }
+    return fullText;
+}
 
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
@@ -21,6 +39,7 @@ export default async function handler(req, res) {
     const form = formidable({});
 
     try {
+        // O formidable.parse agora retorna uma Promise, então usamos await
         const [fields, files] = await form.parse(req);
 
         if (!files.document || files.document.length === 0) {
@@ -28,7 +47,7 @@ export default async function handler(req, res) {
         }
 
         const uploadedFile = files.document[0];
-        const filePath = uploadedFile.filepath; // Caminho temporário do arquivo no servidor
+        const filePath = uploadedFile.filepath; 
         const originalFilename = uploadedFile.originalFilename;
         const mimeType = uploadedFile.mimetype;
 
@@ -37,24 +56,26 @@ export default async function handler(req, res) {
         let extractedText = "";
 
         if (mimeType === 'application/pdf') {
-            const dataBuffer = await fs.readFile(filePath);
-            const data = await pdf(dataBuffer);
-            extractedText = data.text;
-            console.log("Texto extraído de PDF.");
+            try {
+                extractedText = await extractTextFromPdf(filePath);
+                console.log("Texto extraído de PDF usando pdfjs-dist.");
+            } catch (pdfError) {
+                console.error("Erro ao extrair PDF com pdfjs-dist:", pdfError);
+                extractedText = "Erro ao processar arquivo PDF. Tente novamente ou use outro formato.";
+                 // Retorna um erro mais específico se o processamento do PDF falhar
+                return res.status(500).json({ error: "Falha ao processar o conteúdo do PDF.", details: pdfError.message });
+            }
         } else if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') { // DOCX
             const result = await mammoth.extractRawText({ path: filePath });
             extractedText = result.value;
             console.log("Texto extraído de DOCX.");
-        } else if (mimeType === 'application/msword') { // DOC (suporte pode ser limitado)
-             // Mammoth pode tentar ler .doc, mas com limitações.
-             // Para um suporte robusto a .doc, bibliotecas adicionais ou conversão seriam necessárias.
-             // Por agora, vamos tentar com Mammoth, mas avisar sobre limitações.
+        } else if (mimeType === 'application/msword') { // DOC
             try {
                 const result = await mammoth.extractRawText({ path: filePath });
                 extractedText = result.value;
                 console.log("Tentativa de extração de DOC com Mammoth.");
-                if (!extractedText.trim()) {
-                     extractedText = "Não foi possível extrair texto deste arquivo .doc com a biblioteca atual. Tente converter para .docx ou .pdf.";
+                if (!extractedText || !extractedText.trim()) {
+                     extractedText = "Não foi possível extrair texto deste arquivo .doc. Tente converter para .docx ou .pdf.";
                 }
             } catch (docError) {
                 console.error("Erro ao ler .doc com Mammoth:", docError);
@@ -64,27 +85,24 @@ export default async function handler(req, res) {
             extractedText = await fs.readFile(filePath, 'utf8');
             console.log("Texto extraído de TXT.");
         } else {
+            // Limpar o arquivo temporário mesmo se o formato não for suportado
+            await fs.unlink(filePath).catch(err => console.error("Erro ao deletar arquivo temporário (tipo não suportado):", err));
             return res.status(400).json({ error: `Formato de arquivo não suportado: ${mimeType}` });
         }
 
-        // Limpar o arquivo temporário após o uso
+        // Limpar o arquivo temporário após o uso bem-sucedido
         await fs.unlink(filePath).catch(err => console.error("Erro ao deletar arquivo temporário:", err));
-
-        // *** PONTO DE INTEGRAÇÃO COM A API DO GEMINI VIRÁ AQUI ***
-        // Por enquanto, vamos apenas retornar um trecho do texto extraído e uma mensagem.
 
         res.status(200).json({
             message: `Arquivo "${originalFilename}" processado!`,
-            extractedTextPreview: extractedText.substring(0, 500) + (extractedText.length > 500 ? "..." : ""),
-            // futuramente aqui viriam os dados estruturados do Gemini
+            extractedTextPreview: extractedText.substring(0, 1000) + (extractedText.length > 1000 ? "..." : ""), // Aumentei a prévia
         });
 
     } catch (error) {
-        console.error('Erro no processamento do arquivo:', error);
-        // Se houver erro de parse do formidable ou leitura de arquivo
-        let userMessage = "Ocorreu um erro ao processar o arquivo.";
-        if (error.message.includes("formidable")) {
-             userMessage = "Erro no upload do arquivo. Tente novamente.";
+        console.error('Erro geral no processamento do arquivo:', error);
+        let userMessage = "Ocorreu um erro no servidor ao processar o arquivo.";
+        if (error.message.includes("formidable") || error.message.includes("Part")) { // Erros comuns do formidable
+             userMessage = "Erro no upload do arquivo. Verifique o arquivo e tente novamente.";
         }
         res.status(500).json({ error: userMessage, details: error.message });
     }
