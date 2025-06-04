@@ -4,8 +4,9 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "formidable": "^3.5.1", 
+    "formidable": "^3.5.1",
     "mammoth": "^1.7.0",
-    "pdf-parse": "^1.1.1"  
+    "pdfjs-dist": "^4.3.136" 
+    // "pdf-parse": "^1.1.1", 
   }
 }
