@@ -4,8 +4,7 @@ import fs from 'fs/promises';
 import mammoth from 'mammoth';
 // Importa a versão 'legacy' do pdfjs-dist que tende a funcionar melhor em Node.js
 // sem a necessidade de configurar um 'worker' separado explicitamente.
-import * as pdfjsLib from 'pdfjs-dist';
-const { getDocument } = pdfjsLib;
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
 export const config = {
     api: {
         bodyParser: false, // Necessário para o formidable processar o upload
@@ -16,7 +15,7 @@ export const config = {
 async function extractTextFromPdf(filePath) {
     const dataBuffer = await fs.readFile(filePath);
     // pdfjsLib.getDocument espera um Uint8Array ou um objeto com 'data'
-    const pdfDocument = await getDocument({ data: new Uint8Array(dataBuffer) }).promise;
+   const pdfDocument = await pdfjsLib.getDocument({ data: new Uint8Array(dataBuffer) }).promise;
     
     let fullText = "";
     for (let i = 1; i <= pdfDocument.numPages; i++) {
