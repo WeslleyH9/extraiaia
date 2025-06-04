@@ -4,7 +4,11 @@ import fs from 'fs/promises';
 import mammoth from 'mammoth';
 // Importa a versão 'legacy' do pdfjs-dist que tende a funcionar melhor em Node.js
 // sem a necessidade de configurar um 'worker' separado explicitamente.
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
+import * as pdfjsLib from 'pdfjs-dist';
+
+console.log('Conteúdo de pdfjsLib:', pdfjsLib);
+console.log('Tipo de pdfjsLib.getDocument:', typeof pdfjsLib.getDocument);
+
 export const config = {
     api: {
         bodyParser: false, // Necessário para o formidable processar o upload
@@ -13,17 +17,21 @@ export const config = {
 
 // Função auxiliar para extrair texto de PDF usando pdfjs-dist
 async function extractTextFromPdf(filePath) {
+    // Adicionamos uma verificação extra aqui
+    if (typeof pdfjsLib.getDocument !== 'function') {
+        console.error('pdfjsLib.getDocument não é uma função! Verifique a importação de pdfjs-dist.');
+        throw new Error('Falha ao carregar a biblioteca PDF. getDocument não está disponível.');
+    }
+
     const dataBuffer = await fs.readFile(filePath);
-    // pdfjsLib.getDocument espera um Uint8Array ou um objeto com 'data'
-   const pdfDocument = await pdfjsLib.getDocument({ data: new Uint8Array(dataBuffer) }).promise;
-    
+    const pdfDocument = await pdfjsLib.getDocument({ data: new Uint8Array(dataBuffer) }).promise;
+
     let fullText = "";
     for (let i = 1; i <= pdfDocument.numPages; i++) {
         const page = await pdfDocument.getPage(i);
         const textContent = await page.getTextContent();
         const pageText = textContent.items.map(item => item.str).join(" ");
-        fullText += pageText + "\n"; // Adiciona uma nova linha entre as páginas
-        // É uma boa prática limpar a página para liberar memória, especialmente com muitos PDFs/páginas
+        fullText += pageText + "\n";
         page.cleanup(); 
     }
     return fullText;
