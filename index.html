@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extraia.ai - Sua IA para Decifrar Documentos</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts - Nunito -->
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Estilos personalizados que definimos anteriormente */
+        body {
+            font-family: 'Nunito', sans-serif;
+            background-color: #f7fafc; /* Branco gelo */
+            color: #2D3748; /* Cinza escuro para texto padrão */
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        .primary-green-text {
+            color: #2F855A; /* Verde escuro para textos de destaque */
+        }
+        .upload-box-border {
+            border-color: #B2F5EA; /* Borda verde menta claro */
+        }
+        .upload-box-hover:hover {
+            background-color: #f0fdfa; /* Verde bem claro no hover */
+            border-color: #38A169; /* Verde mais forte na borda ao passar o mouse */
+        }
+        .btn-primary-green {
+            background-color: #2F855A; /* Verde escuro para botão */
+            color: white;
+        }
+        .btn-primary-green:hover:not(:disabled) { /* Adicionado :not(:disabled) para o hover */
+            background-color: #276749; /* Verde mais escuro no hover */
+        }
+        .logo-icon svg {
+            width: 32px;
+            height: 32px;
+            margin-right: 8px;
+        }
+        .logo-text {
+            font-size: 1.75rem; /* 28px */
+            font-weight: 700;
+            color: #2D3748; /* Cinza escuro para o texto do logo */
+        }
+        .logo-text .ai {
+            color: #2F855A; /* Verde escuro para o ".ai" */
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Cabeçalho -->
+    <header class="py-6 px-4 sm:px-6 lg:px-8 w-full">
+        <div class="max-w-6xl mx-auto flex items-center">
+            <div class="flex items-center logo-icon">
+                <!-- Ícone SVG "Filtro de Papel" -->
+                <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M20,10 L80,10 L80,70 L60,90 L40,90 L20,70 Z" fill="#E6FFFA" stroke="#2F855A" stroke-width="3"/>
+                    <path d="M30,10 L30,50 M70,10 L70,50" fill="none" stroke="#B2F5EA" stroke-width="2" stroke-dasharray="3,3"/>
+                    <path d="M25,60 L75,60" fill="none" stroke="#2F855A" stroke-width="5"/>
+                </svg>
+                <span class="logo-text">Extraia<span class="ai">.ai</span></span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Conteúdo Principal -->
+    <main class="flex-grow flex flex-col items-center justify-center text-center px-4 py-12">
+        <div class="max-w-2xl w-full">
+            <h1 class="text-3xl sm:text-4xl font-bold primary-green-text mb-8">
+                Sua inteligência artificial para decifrar documentos.
+            </h1>
+
+            <div id="uploadArea" class="upload-box-border upload-box-hover border-2 dashed rounded-lg p-8 sm:p-12 flex flex-col items-center justify-center cursor-pointer mb-6 min-h-[200px] transition-colors">
+                <!-- Ícone de Upload Padrão (Bandeja com Seta) -->
+                <svg class="w-16 h-16 text-gray-400 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                </svg>
+                <p class="text-lg text-gray-600 mb-2">Arraste seu arquivo para cá ou clique para selecionar.</p>
+                <input type="file" id="fileInput" class="hidden" accept=".pdf,.doc,.docx,.txt">
+            </div>
+
+            <p class="text-sm text-gray-500 mb-8">
+                Formatos aceitos: PDF, DOCX, DOC, TXT
+            </p>
+
+            <button id="extractButton" class="btn-primary-green font-semibold py-3 px-8 rounded-lg text-lg shadow-md opacity-50 cursor-not-allowed" disabled>
+                Extrair Agora!
+            </button>
+            <div id="fileNameDisplay" class="text-gray-700 mt-4 text-sm"></div>
+            <div id="loadingSpinner" class="mt-4 hidden">
+                 <svg class="animate-spin h-8 w-8 text-green-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <p class="text-sm text-gray-600 mt-2">Processando seu documento...</p>
+            </div>
+            <div id="errorMessage" class="text-red-600 mt-4 text-sm hidden"></div>
+
+        </div>
+    </main>
+
+    <!-- Rodapé -->
+    <footer class="py-6 px-4 sm:px-6 lg:px-8 w-full mt-auto">
+        <div class="max-w-6xl mx-auto text-center sm:flex sm:justify-between sm:text-left">
+            <div class="mb-2 sm:mb-0">
+                <a href="mailto:iaextraia@gmail.com" id="contactLink" class="text-sm text-gray-500 hover:text-gray-700 transition-colors">Contato</a>
+            </div>
+            <p class="text-sm text-gray-500">
+                &copy; <span id="currentYear"></span> Extraia.ai
+            </p>
+        </div>
+    </footer>
+
+        <script>
+        // Ano atual no rodapé
+        document.getElementById('currentYear').textContent = new Date().getFullYear();
+
+        // Elementos do DOM
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const extractButton = document.getElementById('extractButton');
+        const fileNameDisplay = document.getElementById('fileNameDisplay');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const errorMessage = document.getElementById('errorMessage');
+        const contactLink = document.getElementById('contactLink'); 
+
+        // Lógica de Upload
+        uploadArea.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', handleFileSelect);
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, preventDefaults, false);
+            document.body.addEventListener(eventName, preventDefaults, false);
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, () => {
+                uploadArea.classList.add('bg-green-50', 'border-green-500');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, () => {
+                uploadArea.classList.remove('bg-green-50', 'border-green-500');
+            }, false);
+        });
+
+        uploadArea.addEventListener('drop', handleDrop, false);
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        function handleFileSelect(event) {
+            const files = event.target.files;
+            if (files.length > 0) {
+                processFile(files[0]);
+            }
+        }
+
+        function handleDrop(event) {
+            const dt = event.dataTransfer;
+            const files = dt.files;
+            if (files.length > 0) {
+                fileInput.files = files; 
+                processFile(files[0]);
+            }
+        }
+
+        function processFile(file) {
+            const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
+            // Verificação mais robusta de tipo pelo nome do arquivo para .doc e .docx
+            const fileName = file.name.toLowerCase();
+            const isDoc = fileName.endsWith('.doc');
+            const isDocx = fileName.endsWith('.docx');
+            const isTxt = fileName.endsWith('.txt');
+            const isPdf = fileName.endsWith('.pdf');
+
+            let fileTypeIsValid = allowedTypes.includes(file.type) || isDoc || isDocx || isTxt || isPdf;
+            
+            // Alguns navegadores não definem o 'file.type' corretamente para doc/docx, então checamos a extensão.
+            if (!fileTypeIsValid && (isDoc || isDocx)) {
+                 fileTypeIsValid = true; // Confia na extensão se o tipo MIME estiver vazio ou genérico
+            }
+
+
+            if (!fileTypeIsValid) {
+                fileNameDisplay.textContent = '';
+                errorMessage.textContent = `Formato de arquivo não suportado. Use PDF, DOC, DOCX ou TXT.`;
+                errorMessage.classList.remove('hidden');
+                extractButton.disabled = true;
+                extractButton.classList.add('opacity-50', 'cursor-not-allowed');
+                extractButton.classList.remove('hover:bg-green-700');
+                return;
+            }
+
+            fileNameDisplay.textContent = `Arquivo selecionado: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`;
+            extractButton.disabled = false;
+            extractButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            extractButton.classList.add('hover:bg-green-700');
+            errorMessage.classList.add('hidden');
+            errorMessage.textContent = '';
+        }
+        
+        contactLink.href = `mailto:iaextraia@gmail.com`;
+
+        // Lógica do Botão Extrair AGORA CONECTADA AO BACKEND
+        extractButton.addEventListener('click', async () => {
+            if (!fileInput.files || fileInput.files.length === 0) {
+                errorMessage.textContent = 'Por favor, selecione um arquivo primeiro.';
+                errorMessage.classList.remove('hidden');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            
+            loadingSpinner.classList.remove('hidden');
+            extractButton.disabled = true;
+            extractButton.classList.add('opacity-50', 'cursor-not-allowed');
+            extractButton.classList.remove('hover:bg-green-700');
+            errorMessage.classList.add('hidden');
+            fileNameDisplay.textContent = `Processando: ${file.name}`;
+
+            const formData = new FormData();
+            formData.append('document', file); // O nome 'document' deve bater com o que o formidable espera
+
+            try {
+                // A chamada para a nossa API na Vercel!
+                const response = await fetch('/api/extract', { 
+                    method: 'POST',
+                    body: formData
+                    // Não precisa de 'Content-Type' aqui, o navegador define para FormData
+                });
+
+                // Limpa o campo de input de arquivo para permitir novo upload do mesmo arquivo se necessário
+                fileInput.value = '';
+
+
+                if (!response.ok) {
+                    // Tenta pegar uma mensagem de erro mais detalhada do backend, se houver
+                    let errorData;
+                    try {
+                        errorData = await response.json();
+                    } catch (e) {
+                        // Se o corpo do erro não for JSON
+                        errorData = { message: `Erro do servidor: ${response.status} ${response.statusText}` };
+                    }
+                    throw new Error(errorData.error || errorData.message || `Erro do servidor: ${response.status}`);
+                }
+
+                const resultData = await response.json();
+                console.log("Backend respondeu:", resultData);
+                
+                // Exibe a prévia do texto extraído
+                // Vamos criar um novo elemento para mostrar isso de forma mais clara
+                let resultDisplay = document.getElementById('resultDisplay');
+                if (!resultDisplay) {
+                    resultDisplay = document.createElement('div');
+                    resultDisplay.id = 'resultDisplay';
+                    resultDisplay.classList.add('mt-6', 'p-4', 'bg-gray-100', 'rounded-md', 'text-left', 'text-sm', 'max-h-60', 'overflow-y-auto');
+                    extractButton.parentNode.insertBefore(resultDisplay, loadingSpinner.nextSibling);
+                }
+                
+                resultDisplay.innerHTML = `
+                    <h3 class="font-semibold text-gray-700 mb-2">Prévia do Texto Extraído de "${file.name}":</h3>
+                    <pre class="whitespace-pre-wrap">${resultData.extractedTextPreview || "Nenhum texto prévio retornado."}</pre>
+                    <p class="mt-2 text-xs text-gray-500">${resultData.message || ""}</p>
+                `;
+                fileNameDisplay.textContent = `Processamento concluído para: ${file.name}`;
+
+                // No futuro, aqui você redirecionaria para a página de resultados
+                // com todos os dados estruturados.
+                // Ex: localStorage.setItem('extractionResult', JSON.stringify(resultData.fullStructuredData));
+                // window.location.href = 'resultados.html'; 
+
+            } catch (error) {
+                console.error("Erro na chamada ao backend:", error);
+                errorMessage.textContent = `Erro: ${error.message}`;
+                errorMessage.classList.remove('hidden');
+                fileNameDisplay.textContent = `Falha ao processar: ${file.name}`;
+            } finally {
+                loadingSpinner.classList.add('hidden');
+                // Reabilitar o botão para nova tentativa
+                 extractButton.disabled = false;
+                 extractButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                 extractButton.classList.add('hover:bg-green-700');
+            }
+        });
+    </script>
+
+</body>
+</html>
