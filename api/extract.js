@@ -1,50 +1,48 @@
 // api/extract.js
 import formidable from 'formidable';
-import fs from 'fs/promises'; // Usamos a versão de 'promises' para async/await
+import fs from 'fs/promises';
 import mammoth from 'mammoth';
-// Importa a versão 'legacy' do pdfjs-dist, que é a recomendada para Node.js
-import * as pdfjsStar from 'pdfjs-dist/legacy/build/pdf.js';
-const pdfjsLib = pdfjsStar.default || pdfjsStar;
-// ESSENCIAL: Desabilita o worker para evitar erros em ambientes serverless.
-// Deve ser feito ANTES de qualquer chamada a pdfjsLib.getDocument.
-if (pdfjsLib.GlobalWorkerOptions) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `data:,`; // Define um worker "nulo"
-} else {
-    console.warn("[WARN] pdfjs-dist: pdfjsLib OU pdfjsLib.GlobalWorkerOptions não está definido após tentar .default. O worker pode não ser desabilitado.");
-    // Logs de diagnóstico para entender a estrutura do que foi importado
-    console.log("[DEBUG] Conteúdo de pdfjsStar (importação original):", typeof pdfjsStar === 'object' ? Object.keys(pdfjsStar) : pdfjsStar);
-    if (pdfjsStar && typeof pdfjsStar.default !== 'undefined') {
-        console.log("[DEBUG] Conteúdo de pdfjsStar.default:", typeof pdfjsStar.default === 'object' ? Object.keys(pdfjsStar.default) : pdfjsStar.default);
-    }
-     console.log("[DEBUG] Conteúdo de pdfjsLib (após tentativa de .default):", typeof pdfjsLib === 'object' ? Object.keys(pdfjsLib) : pdfjsLib);
-}
+// Importa o módulo legacy do pdfjs-dist
+import pdfjsStarModule from 'pdfjs-dist/legacy/build/pdf.js';
 
+// ACESSA O OBJETO REAL DA BIBLIOTECA, que PROVAVELMENTE ESTÁ NO .default
+// Esta é a forma mais comum de interoperabilidade entre ES Modules e CommonJS/UMD
+const pdfjsLib = pdfjsStarModule.default || pdfjsStarModule;
 
+// NÃO vamos configurar GlobalWorkerOptions.workerSrc.
+// A build "legacy" é projetada para funcionar em Node.js sem isso.
 
 export const config = {
     api: {
-        bodyParser: false, // Necessário para o formidable processar o upload de arquivos
+        bodyParser: false, // Necessário para o formidable processar o upload
     },
 };
 
 // Função auxiliar para extrair texto de PDF
-async function extractTextFromPdf(filePath) { if (!pdfjsLib || typeof pdfjsLib.getDocument !== 'function') {
-        console.error("[ERROR] Falha crítica: pdfjsLib.getDocument não é uma função válida.");
-        console.error("[DEBUG] Valor de pdfjsLib ao chamar getDocument:", pdfjsLib);
+async function extractTextFromPdf(filePath) {
+    // Verifica se pdfjsLib e pdfjsLib.getDocument estão definidos e são funções
+    if (!pdfjsLib || typeof pdfjsLib.getDocument !== 'function') {
+        const errorMsg = "[ERROR] Falha crítica: pdfjsLib.getDocument não é uma função válida.";
+        console.error(errorMsg);
+        // Log para entender o que é pdfjsLib e pdfjsStarModule
+        console.error("[DEBUG] Conteúdo de pdfjsStarModule (importação original):", typeof pdfjsStarModule === 'object' ? Object.keys(pdfjsStarModule) : pdfjsStarModule);
+        if (pdfjsStarModule && typeof pdfjsStarModule.default !== 'undefined') {
+            console.error("[DEBUG] Conteúdo de pdfjsStarModule.default:", typeof pdfjsStarModule.default === 'object' ? Object.keys(pdfjsStarModule.default) : pdfjsStarModule.default);
+        }
+        console.error("[DEBUG] Conteúdo de pdfjsLib (após tentativa de .default):", typeof pdfjsLib === 'object' ? Object.keys(pdfjsLib) : pdfjsLib);
         throw new Error('Biblioteca PDF não carregou corretamente ou getDocument não é uma função.');
     }
+
     const dataBuffer = await fs.readFile(filePath);
-    // getDocument é uma função do módulo pdfjsLib importado
     const pdfDocument = await pdfjsLib.getDocument({ data: new Uint8Array(dataBuffer) }).promise;
     
     let fullText = "";
     for (let i = 1; i <= pdfDocument.numPages; i++) {
         const page = await pdfDocument.getPage(i);
         const textContent = await page.getTextContent();
-        // Concatena o texto dos itens da página, adicionando um espaço entre eles
         const pageText = textContent.items.map(item => item.str).join(" ");
-        fullText += pageText + "\n"; // Adiciona uma nova linha entre as páginas
-        page.cleanup(); // Libera recursos da página
+        fullText += pageText + "\n";
+        page.cleanup(); 
     }
     return fullText;
 }
@@ -57,7 +55,7 @@ export default async function handler(req, res) {
 
     // Verifica se o pdfjsLib foi carregado corretamente no início do handler
     if (!pdfjsLib || typeof pdfjsLib.getDocument !== 'function') {
-        console.error("[ERROR] Handler iniciado, mas pdfjsLib.getDocument não está disponível.");
+        console.error("[ERROR] Handler iniciado, mas pdfjsLib.getDocument não está disponível. Verifique os logs de importação no topo do arquivo.");
         return res.status(500).json({ error: "Dependência crítica para PDF (pdfjsLib.getDocument) não carregada no servidor."});
     }
 
@@ -66,7 +64,7 @@ export default async function handler(req, res) {
 
     try {
         const [fields, files] = await form.parse(req);
-
+        
         if (!files.document || files.document.length === 0) {
             return res.status(400).json({ error: "Nenhum arquivo enviado." });
         }
@@ -112,7 +110,7 @@ export default async function handler(req, res) {
             console.warn(`[WARN] Formato de arquivo não suportado: ${mimeType}`);
             return res.status(400).json({ error: `Formato de arquivo não suportado: ${mimeType}` });
         }
-
+        
         res.status(200).json({
             message: `Arquivo "${originalFilename}" processado com sucesso!`,
             extractedTextPreview: extractedText.substring(0, 2000) + (extractedText.length > 2000 ? "..." : ""),
@@ -124,7 +122,8 @@ export default async function handler(req, res) {
         if (error.message && (error.message.includes("formidable") || error.message.includes("Part"))) {
              userMessage = "Erro no upload do arquivo. Verifique o arquivo e tente novamente.";
         }
-        res.status(500).json({ error: userMessage, details: error.message });
+        // Adiciona a mensagem de erro original aos detalhes para melhor depuração
+        res.status(500).json({ error: userMessage, details: error.message || String(error) });
     } finally {
         if (tempFilePath) {
             try {
