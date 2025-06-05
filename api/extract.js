@@ -18,21 +18,11 @@ if (pdfjsStar && typeof pdfjsStar.default !== 'undefined') {
 // Tentativa de acessar o objeto principal da biblioteca PDF.js
 const pdfjsLib = pdfjsStar.default || pdfjsStar; // Tenta o .default primeiro
 
-if (pdfjsLib && typeof pdfjsLib.GlobalWorkerOptions !== 'undefined') {
-    // Se GlobalWorkerOptions existir, tentamos configurar workerSrc como false
-    // para explicitamente desabilitar o carregamento de um worker externo.
-    try {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = false;
-        console.log("[INFO] pdfjs-dist: GlobalWorkerOptions.workerSrc configurado como false.");
-    } catch (e) {
-        console.error("[ERROR] pdfjs-dist: Falha ao configurar GlobalWorkerOptions.workerSrc:", e.message);
-        pdfjsConfigError = "Falha ao configurar workerSrc: " + e.message;
-    }
-} else {
-    const msg = "[WARN] pdfjs-dist: pdfjsLib OU pdfjsLib.GlobalWorkerOptions não está definido. O worker pode não ser desabilitado corretamente.";
-    console.warn(msg);
-    pdfjsConfigError = msg;
-}
+// REMOVEMOS A CONFIGURAÇÃO DE GlobalWorkerOptions.workerSrc
+// A build legacy deve funcionar em Node.js sem essa configuração explícita.
+// Se ela ainda tentar carregar um worker e falhar, o problema é mais profundo.
+console.log("[INFO] pdfjs-dist: Não estamos configurando GlobalWorkerOptions.workerSrc explicitamente.");
+
 
 // Verifica se a função getDocument está acessível
 if (pdfjsLib && typeof pdfjsLib.getDocument === 'function') {
@@ -41,7 +31,7 @@ if (pdfjsLib && typeof pdfjsLib.getDocument === 'function') {
 } else {
     const msg = "[ERROR] Falha crítica: pdfjsLib.getDocument não é uma função válida.";
     console.error(msg);
-    if (!pdfjsConfigError) pdfjsConfigError = msg; // Guarda o erro mais relevante
+    pdfjsConfigError = msg; // Guarda o erro mais relevante
 }
 // --- Fim do Bloco de Diagnóstico ---
 
