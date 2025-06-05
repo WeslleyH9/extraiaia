@@ -1,43 +1,40 @@
 // api/extract.js
 import formidable from 'formidable';
-import fs from 'fs/promises';
+import fs from 'fs/promises'; // Usamos a versão de 'promises' para async/await
 import mammoth from 'mammoth';
-// Importa o módulo legacy do pdfjs-dist
-import pdfjsLegacyModule from 'pdfjs-dist/legacy/build/pdf.js';
-pdfjsLib.GlobalWorkerOptions.workerSrc = `data:,`;
+// Importa a versão 'legacy' do pdfjs-dist, que é a recomendada para Node.js
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
+
+// ESSENCIAL: Desabilita o worker para evitar erros em ambientes serverless.
+// Deve ser feito ANTES de qualquer chamada a pdfjsLib.getDocument.
+if (pdfjsLib.GlobalWorkerOptions) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `data:,`; // Define um worker "nulo"
+} else {
+    // Log de segurança se GlobalWorkerOptions não estiver disponível como esperado
+    console.warn("pdfjsLib.GlobalWorkerOptions não está definido. O worker pode não ser desabilitado corretamente.");
+}
+
 
 export const config = {
     api: {
-        bodyParser: false, // Necessário para o formidable processar o upload
+        bodyParser: false, // Necessário para o formidable processar o upload de arquivos
     },
 };
 
-// Função auxiliar para extrair texto de PDF usando pdfjs-dist
+// Função auxiliar para extrair texto de PDF
 async function extractTextFromPdf(filePath) {
-    // Tenta aceder a getDocument através do 'default' export (comum para módulos CJS/UMD importados em ESM)
-    // ou diretamente se a exportação principal já for o objeto esperado.
-    const getDocument = pdfjsLegacyModule.getDocument || 
-                        (pdfjsLegacyModule.default ? pdfjsLegacyModule.default.getDocument : undefined);
-
-    if (typeof getDocument !== 'function') {
-        console.error('Falha crítica: pdfjsLegacyModule.getDocument ou pdfjsLegacyModule.default.getDocument não é uma função.');
-        console.error('Conteúdo de pdfjsLegacyModule:', JSON.stringify(pdfjsLegacyModule, null, 2));
-        if (pdfjsLegacyModule && typeof pdfjsLegacyModule.default !== 'undefined') {
-            console.error('Conteúdo de pdfjsLegacyModule.default:', JSON.stringify(pdfjsLegacyModule.default, null, 2));
-        }
-        throw new Error('Biblioteca PDF não carregou corretamente (getDocument não encontrado).');
-    }
-
     const dataBuffer = await fs.readFile(filePath);
-    const pdfDocument = await getDocument({ data: new Uint8Array(dataBuffer) }).promise;
+    // getDocument é uma função do módulo pdfjsLib importado
+    const pdfDocument = await pdfjsLib.getDocument({ data: new Uint8Array(dataBuffer) }).promise;
     
     let fullText = "";
     for (let i = 1; i <= pdfDocument.numPages; i++) {
         const page = await pdfDocument.getPage(i);
         const textContent = await page.getTextContent();
+        // Concatena o texto dos itens da página, adicionando um espaço entre eles
         const pageText = textContent.items.map(item => item.str).join(" ");
         fullText += pageText + "\n"; // Adiciona uma nova linha entre as páginas
-        page.cleanup(); 
+        page.cleanup(); // Libera recursos da página
     }
     return fullText;
 }
@@ -45,11 +42,11 @@ async function extractTextFromPdf(filePath) {
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
         res.setHeader('Allow', ['POST']);
-        return res.status(405).end(`Method ${req.method} Not Allowed`);
+        return res.status(405).json({ message: `Method ${req.method} Not Allowed` });
     }
 
     const form = formidable({});
-    let filePath; // Definir filePath aqui para que esteja acessível no bloco finally
+    let tempFilePath; // Variável para guardar o caminho do arquivo temporário
 
     try {
         const [fields, files] = await form.parse(req);
@@ -59,67 +56,71 @@ export default async function handler(req, res) {
         }
 
         const uploadedFile = files.document[0];
-        filePath = uploadedFile.filepath; // Atribuir a filePath
+        tempFilePath = uploadedFile.filepath; // Caminho do arquivo temporário no servidor
         const originalFilename = uploadedFile.originalFilename;
         const mimeType = uploadedFile.mimetype;
 
-        console.log(`Arquivo recebido: ${originalFilename}, Tipo: ${mimeType}`);
+        console.log(`[INFO] Arquivo recebido: ${originalFilename}, Tipo: ${mimeType}, Caminho Temp: ${tempFilePath}`);
 
         let extractedText = "";
 
         if (mimeType === 'application/pdf') {
-            try {
-                extractedText = await extractTextFromPdf(filePath);
-                console.log("Texto extraído de PDF usando pdfjs-dist (legacy).");
-            } catch (pdfError) {
-                console.error("Erro ao extrair PDF com pdfjs-dist:", pdfError);
-                // Não precisa deletar filePath aqui, o finally cuidará disso.
-                return res.status(500).json({ error: "Falha ao processar o conteúdo do PDF.", details: pdfError.message });
-            }
-        } else if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') { 
-            const result = await mammoth.extractRawText({ path: filePath });
+            console.log("[INFO] Processando PDF...");
+            extractedText = await extractTextFromPdf(tempFilePath);
+            console.log("[SUCCESS] Texto extraído de PDF.");
+        } else if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') { // DOCX
+            console.log("[INFO] Processando DOCX...");
+            const result = await mammoth.extractRawText({ path: tempFilePath });
             extractedText = result.value;
-            console.log("Texto extraído de DOCX.");
-        } else if (mimeType === 'application/msword') { 
+            console.log("[SUCCESS] Texto extraído de DOCX.");
+        } else if (mimeType === 'application/msword') { // DOC
+            console.log("[INFO] Tentando processar DOC com Mammoth...");
             try {
-                const result = await mammoth.extractRawText({ path: filePath });
+                const result = await mammoth.extractRawText({ path: tempFilePath });
                 extractedText = result.value;
                 if (!extractedText || !extractedText.trim()) {
-                     extractedText = "Não foi possível extrair texto deste arquivo .doc. Tente converter para .docx ou .pdf.";
+                     extractedText = "Não foi possível extrair texto deste arquivo .doc. Tente converter para .docx ou .pdf e tente novamente.";
+                     console.warn("[WARN] DOC processado com Mammoth, mas texto vazio.");
+                } else {
+                    console.log("[SUCCESS] Texto extraído de DOC com Mammoth.");
                 }
             } catch (docError) {
-                console.error("Erro ao ler .doc com Mammoth:", docError)
-                extractedText = "Erro ao processar arquivo .doc. Considere converter para .docx ou .pdf.";
+                console.error("[ERROR] Erro ao ler .doc com Mammoth:", docError);
+                extractedText = "Erro ao processar arquivo .doc. Pode ser um formato antigo ou corrompido. Considere converter para .docx ou .pdf.";
             }
-            console.log("Processamento de DOC concluído.");
-        } else if (mimeType === 'text/plain') { 
-            extractedText = await fs.readFile(filePath, 'utf8');
-            console.log("Texto extraído de TXT.");
+        } else if (mimeType === 'text/plain') { // TXT
+            console.log("[INFO] Processando TXT...");
+            extractedText = await fs.readFile(tempFilePath, 'utf8');
+            console.log("[SUCCESS] Texto extraído de TXT.");
         } else {
-            // Não precisa deletar filePath aqui, o finally cuidará disso se filePath estiver definido.
+            console.warn(`[WARN] Formato de arquivo não suportado: ${mimeType}`);
+            // Não precisa deletar tempFilePath aqui, o finally cuidará disso.
             return res.status(400).json({ error: `Formato de arquivo não suportado: ${mimeType}` });
         }
         
+        // Resposta de sucesso
         res.status(200).json({
-            message: `Arquivo "${originalFilename}" processado!`,
-            extractedTextPreview: extractedText.substring(0, 1000) + (extractedText.length > 1000 ? "..." : ""),
+            message: `Arquivo "${originalFilename}" processado com sucesso!`,
+            // Retorna uma prévia maior para melhor visualização
+            extractedTextPreview: extractedText.substring(0, 2000) + (extractedText.length > 2000 ? "..." : ""),
         });
 
     } catch (error) {
-        console.error('Erro geral no processamento do arquivo:', error);
+        console.error('[ERROR] Erro geral no processamento do arquivo no handler:', error);
         let userMessage = "Ocorreu um erro no servidor ao processar o arquivo.";
+        // Verifica se o erro é do formidable (relacionado ao upload em si)
         if (error.message && (error.message.includes("formidable") || error.message.includes("Part"))) {
              userMessage = "Erro no upload do arquivo. Verifique o arquivo e tente novamente.";
         }
         res.status(500).json({ error: userMessage, details: error.message });
     } finally {
-        // Limpar o arquivo temporário após o uso, se filePath foi definido
-        if (filePath) {
+        // Garante que o arquivo temporário seja deletado, mesmo se ocorrerem erros
+        if (tempFilePath) {
             try {
-                await fs.unlink(filePath);
-                console.log(`Arquivo temporário ${filePath} deletado.`);
+                await fs.unlink(tempFilePath);
+                console.log(`[INFO] Arquivo temporário ${tempFilePath} deletado.`);
             } catch (unlinkError) {
-                console.error("Erro ao deletar arquivo temporário no finally:", unlinkError);
+                console.error("[ERROR] Falha ao deletar arquivo temporário no finally:", unlinkError);
             }
         }
     }
