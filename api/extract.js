@@ -2,15 +2,20 @@
 import formidable from 'formidable';
 import fs from 'fs/promises';
 import mammoth from 'mammoth';
-// Importa o módulo legacy do pdfjs-dist
-import pdfjsStarModule from 'pdfjs-dist/legacy/build/pdf.js';
 
-// ACESSA O OBJETO REAL DA BIBLIOTECA, que PROVAVELMENTE ESTÁ NO .default
-// Esta é a forma mais comum de interoperabilidade entre ES Modules e CommonJS/UMD
-const pdfjsLib = pdfjsStarModule.default || pdfjsStarModule;
+// Tentativa de importar getDocument e GlobalWorkerOptions diretamente da build legacy
+// Esta é uma abordagem comum para bibliotecas UMD/CommonJS em ambientes ES Module com Node.js
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist/legacy/build/pdf.js';
 
-// NÃO vamos configurar GlobalWorkerOptions.workerSrc.
-// A build "legacy" é projetada para funcionar em Node.js sem isso.
+// ESSENCIAL: Desabilita o worker para evitar erros em ambientes serverless.
+// Deve ser feito ANTES de qualquer chamada a getDocument.
+if (GlobalWorkerOptions) {
+    GlobalWorkerOptions.workerSrc = false; // Define como false para desabilitar explicitamente o worker.
+    console.log("[INFO] pdfjs-dist: GlobalWorkerOptions.workerSrc configurado como false.");
+} else {
+    // Isso não deveria acontecer se a importação acima funcionar.
+    console.warn("[WARN] pdfjs-dist: GlobalWorkerOptions não foi encontrado a partir da importação nomeada. O worker pode não ser desabilitado corretamente.");
+}
 
 export const config = {
     api: {
@@ -20,21 +25,15 @@ export const config = {
 
 // Função auxiliar para extrair texto de PDF
 async function extractTextFromPdf(filePath) {
-    // Verifica se pdfjsLib e pdfjsLib.getDocument estão definidos e são funções
-    if (!pdfjsLib || typeof pdfjsLib.getDocument !== 'function') {
-        const errorMsg = "[ERROR] Falha crítica: pdfjsLib.getDocument não é uma função válida.";
+    // Verifica se getDocument foi importado corretamente e é uma função
+    if (typeof getDocument !== 'function') {
+        const errorMsg = "[ERROR] Falha crítica: getDocument não é uma função válida. Verifique a importação de 'pdfjs-dist/legacy/build/pdf.js'.";
         console.error(errorMsg);
-        // Log para entender o que é pdfjsLib e pdfjsStarModule
-        console.error("[DEBUG] Conteúdo de pdfjsStarModule (importação original):", typeof pdfjsStarModule === 'object' ? Object.keys(pdfjsStarModule) : pdfjsStarModule);
-        if (pdfjsStarModule && typeof pdfjsStarModule.default !== 'undefined') {
-            console.error("[DEBUG] Conteúdo de pdfjsStarModule.default:", typeof pdfjsStarModule.default === 'object' ? Object.keys(pdfjsStarModule.default) : pdfjsStarModule.default);
-        }
-        console.error("[DEBUG] Conteúdo de pdfjsLib (após tentativa de .default):", typeof pdfjsLib === 'object' ? Object.keys(pdfjsLib) : pdfjsLib);
         throw new Error('Biblioteca PDF não carregou corretamente ou getDocument não é uma função.');
     }
 
     const dataBuffer = await fs.readFile(filePath);
-    const pdfDocument = await pdfjsLib.getDocument({ data: new Uint8Array(dataBuffer) }).promise;
+    const pdfDocument = await getDocument({ data: new Uint8Array(dataBuffer) }).promise;
     
     let fullText = "";
     for (let i = 1; i <= pdfDocument.numPages; i++) {
@@ -53,10 +52,10 @@ export default async function handler(req, res) {
         return res.status(405).json({ message: `Method ${req.method} Not Allowed` });
     }
 
-    // Verifica se o pdfjsLib foi carregado corretamente no início do handler
-    if (!pdfjsLib || typeof pdfjsLib.getDocument !== 'function') {
-        console.error("[ERROR] Handler iniciado, mas pdfjsLib.getDocument não está disponível. Verifique os logs de importação no topo do arquivo.");
-        return res.status(500).json({ error: "Dependência crítica para PDF (pdfjsLib.getDocument) não carregada no servidor."});
+    // Verifica se getDocument foi carregado corretamente no início do handler
+    if (typeof getDocument !== 'function') {
+        console.error("[ERROR] Handler iniciado, mas getDocument não está disponível. A importação de pdfjs-dist falhou.");
+        return res.status(500).json({ error: "Dependência crítica para PDF (getDocument) não carregada no servidor."});
     }
 
     const form = formidable({});
@@ -122,7 +121,6 @@ export default async function handler(req, res) {
         if (error.message && (error.message.includes("formidable") || error.message.includes("Part"))) {
              userMessage = "Erro no upload do arquivo. Verifique o arquivo e tente novamente.";
         }
-        // Adiciona a mensagem de erro original aos detalhes para melhor depuração
         res.status(500).json({ error: userMessage, details: error.message || String(error) });
     } finally {
         if (tempFilePath) {
