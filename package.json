@@ -5,7 +5,7 @@
   "type": "module",
   "dependencies": {
     "formidable": "^3.5.1",
-    "mammoth": "^1.7.0",
+    "mammoth": "^1.7.2",
     "pdfjs-dist": "^3.11.174"
   }
 }
