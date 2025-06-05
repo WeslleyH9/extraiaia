@@ -3,7 +3,7 @@ import formidable from 'formidable';
 import fs from 'fs/promises'; // Usamos a versão de 'promises' para async/await
 import mammoth from 'mammoth';
 // Importa a versão 'legacy' do pdfjs-dist, que é a recomendada para Node.js
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
+import * as pdfjsStar from 'pdfjs-dist/legacy/build/pdf.js';
 const pdfjsLib = pdfjsStar.default || pdfjsStar;
 // ESSENCIAL: Desabilita o worker para evitar erros em ambientes serverless.
 // Deve ser feito ANTES de qualquer chamada a pdfjsLib.getDocument.
