@@ -4,6 +4,7 @@ import fs from 'fs/promises';
 import mammoth from 'mammoth';
 // Importa o módulo legacy do pdfjs-dist
 import pdfjsLegacyModule from 'pdfjs-dist/legacy/build/pdf.js';
+pdfjsLib.GlobalWorkerOptions.workerSrc = `data:,`;
 
 export const config = {
     api: {
