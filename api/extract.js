@@ -2,7 +2,7 @@
 import formidable from 'formidable';
 import fs from 'fs/promises';
 import mammoth from 'mammoth';
-import pdf from 'pdf-parse'; // Importa o pdf-parse
+import extractPdfText from 'pdf-text-extract'; // Importa pdf-text-extract
 
 export const config = {
     api: {
@@ -10,13 +10,38 @@ export const config = {
     },
 };
 
-// Função auxiliar para extrair texto de PDF usando pdf-parse
-async function extractTextFromPdfWithPdfParse(filePath) {
-    const dataBuffer = await fs.readFile(filePath);
-    const data = await pdf(dataBuffer); // pdf-parse retorna um objeto com a propriedade 'text'
-    console.log("[INFO] pdf-parse: Metadados do PDF:", data.info);
-    console.log("[INFO] pdf-parse: Número de páginas:", data.numpages);
-    return data.text; // Retorna o texto extraído
+// Função auxiliar para extrair texto de PDF usando pdf-text-extract
+async function extractTextFromPdfWithPdfTextExtract(filePath) {
+    console.log("[INFO] extractTextFromPdfWithPdfTextExtract: Iniciando extração para o arquivo:", filePath);
+    return new Promise((resolve, reject) => {
+        extractPdfText(filePath, (err, pages) => {
+            if (err) {
+                console.error("[ERROR] pdf-text-extract: Erro ao extrair texto do PDF:", err);
+                let errorMessage = "Falha ao processar PDF com pdf-text-extract.";
+                
+                // Tenta extrair mais detalhes do erro
+                if (typeof err === 'string') {
+                    errorMessage += ` Detalhes: ${err}`;
+                } else if (err instanceof Error && err.message) {
+                    errorMessage += ` Detalhes: ${err.message}`;
+                } else if (err.toString) {
+                    errorMessage += ` Detalhes: ${err.toString()}`;
+                }
+
+                // Verifica se o erro pode ser devido à ausência do 'pdftotext'
+                if (errorMessage.toLowerCase().includes('pdftotext') || 
+                    (err.message && err.message.toLowerCase().includes('spawn pdftotext enoent'))) {
+                    errorMessage += " (Dependência 'pdftotext' pode não estar disponível no ambiente do servidor. Esta biblioteca requer 'pdftotext' instalado no sistema.)";
+                    console.error("[ERROR] pdf-text-extract: Comando 'pdftotext' provavelmente ausente.");
+                }
+                return reject(new Error(errorMessage));
+            }
+            // 'pages' é um array de strings, onde cada string é o texto de uma página
+            const fullText = pages.join("\n\n"); // Usa duas novas linhas para separar melhor o texto das páginas
+            console.log("[INFO] pdf-text-extract: Texto extraído com sucesso. Número de páginas processadas:", pages.length);
+            resolve(fullText);
+        });
+    });
 }
 
 export default async function handler(req, res) {
@@ -25,14 +50,18 @@ export default async function handler(req, res) {
         return res.status(405).json({ message: `Method ${req.method} Not Allowed` });
     }
 
-    const form = formidable({});
+    const form = formidable({
+        keepExtensions: true, // Mantém a extensão do arquivo original no nome temporário, se possível
+        maxFileSize: 10 * 1024 * 1024, // Limite de 10MB para o arquivo
+    });
     let tempFilePath; 
 
     try {
         const [fields, files] = await form.parse(req);
         
         if (!files.document || files.document.length === 0) {
-            return res.status(400).json({ error: "Nenhum arquivo enviado." });
+            console.warn("[WARN] Handler: Nenhum arquivo 'document' recebido no upload.");
+            return res.status(400).json({ error: "Nenhum arquivo enviado com o nome 'document'." });
         }
 
         const uploadedFile = files.document[0];
@@ -40,43 +69,41 @@ export default async function handler(req, res) {
         const originalFilename = uploadedFile.originalFilename;
         const mimeType = uploadedFile.mimetype;
 
-        console.log(`[INFO] Arquivo recebido: ${originalFilename}, Tipo: ${mimeType}, Caminho Temp: ${tempFilePath}`);
+        console.log(`[INFO] Handler: Arquivo recebido: ${originalFilename}, Tipo: ${mimeType}, Caminho Temp: ${tempFilePath}`);
 
         let extractedText = "";
 
         if (mimeType === 'application/pdf') {
-            console.log("[INFO] Processando PDF com pdf-parse...");
-            try {
-                extractedText = await extractTextFromPdfWithPdfParse(tempFilePath);
-                console.log("[SUCCESS] Texto extraído de PDF com pdf-parse.");
-            } catch (pdfError) {
-                console.error("[ERROR] Erro ao extrair PDF com pdf-parse:", pdfError);
-                return res.status(500).json({ error: "Falha ao processar o conteúdo do PDF com pdf-parse.", details: pdfError.message });
-            }
+            console.log("[INFO] Handler: Processando PDF com pdf-text-extract...");
+            extractedText = await extractTextFromPdfWithPdfTextExtract(tempFilePath);
+            console.log("[SUCCESS] Handler: Texto extraído de PDF com pdf-text-extract.");
         } else if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') { 
-            console.log("[INFO] Processando DOCX...");
+            console.log("[INFO] Handler: Processando DOCX...");
             const result = await mammoth.extractRawText({ path: tempFilePath });
             extractedText = result.value;
-            console.log("[SUCCESS] Texto extraído de DOCX.");
+            console.log("[SUCCESS] Handler: Texto extraído de DOCX.");
         } else if (mimeType === 'application/msword') { 
-            console.log("[INFO] Tentando processar DOC com Mammoth...");
+            // O suporte a .doc legado pelo mammoth é limitado e pode não funcionar para todos os arquivos .doc
+            console.log("[INFO] Handler: Tentando processar DOC com Mammoth...");
             try {
                 const result = await mammoth.extractRawText({ path: tempFilePath });
                 extractedText = result.value;
                 if (!extractedText || !extractedText.trim()) {
                      extractedText = "Não foi possível extrair texto deste arquivo .doc. Tente converter para .docx ou .pdf.";
-                     console.warn("[WARN] DOC processado com Mammoth, mas texto vazio.");
-                } else { console.log("[SUCCESS] Texto extraído de DOC com Mammoth."); }
+                     console.warn("[WARN] Handler: DOC processado com Mammoth, mas texto vazio.");
+                } else { 
+                    console.log("[SUCCESS] Handler: Texto extraído de DOC com Mammoth.");
+                }
             } catch (docError) {
-                console.error("[ERROR] Erro ao ler .doc com Mammoth:", docError);
-                extractedText = "Erro ao processar arquivo .doc.";
+                console.error("[ERROR] Handler: Erro ao ler .doc com Mammoth:", docError);
+                extractedText = "Erro ao processar arquivo .doc. Pode ser um formato antigo ou corrompido.";
             }
         } else if (mimeType === 'text/plain') { 
-            console.log("[INFO] Processando TXT...");
+            console.log("[INFO] Handler: Processando TXT...");
             extractedText = await fs.readFile(tempFilePath, 'utf8');
-            console.log("[SUCCESS] Texto extraído de TXT.");
+            console.log("[SUCCESS] Handler: Texto extraído de TXT.");
         } else {
-            console.warn(`[WARN] Formato de arquivo não suportado: ${mimeType}`);
+            console.warn(`[WARN] Handler: Formato de arquivo não suportado: ${mimeType}`);
             return res.status(400).json({ error: `Formato de arquivo não suportado: ${mimeType}` });
         }
         
@@ -86,15 +113,21 @@ export default async function handler(req, res) {
         });
 
     } catch (error) {
-        console.error('[ERROR] Erro geral no handler:', error);
-        res.status(500).json({ error: "Erro no servidor ao processar arquivo.", details: error.message || String(error) });
+        console.error('[ERROR] Handler: Erro geral no processamento do arquivo:', error);
+        let userMessage = "Ocorreu um erro no servidor ao processar o arquivo.";
+        if (error.message && (error.message.includes("formidable") || error.message.includes("Part") || error.message.includes("maxFileSize"))) {
+             userMessage = "Erro no upload do arquivo. Verifique o tamanho ou o formato do arquivo e tente novamente.";
+        } else if (error.message && error.message.includes("pdf-text-extract")) {
+            userMessage = "Erro ao processar o conteúdo do PDF. O arquivo pode estar corrompido ou em um formato PDF não suportado.";
+        }
+        res.status(500).json({ error: userMessage, details: error.message || String(error) });
     } finally {
         if (tempFilePath) {
             try {
                 await fs.unlink(tempFilePath);
-                console.log(`[INFO] Arquivo temporário ${tempFilePath} deletado.`);
+                console.log(`[INFO] Handler: Arquivo temporário ${tempFilePath} deletado.`);
             } catch (unlinkError) {
-                console.error("[ERROR] Falha ao deletar arquivo temporário:", unlinkError);
+                console.error("[ERROR] Handler: Falha ao deletar arquivo temporário no finally:", unlinkError);
             }
         }
     }
