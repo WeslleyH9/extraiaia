@@ -49,21 +49,19 @@
             <div id="mainContent">
                 <h1 class="text-3xl sm:text-4xl font-bold primary-green-text mb-6">A sua inteligência artificial para decifrar documentos.</h1>
 
-                <div id="contentUpload">
-                    <div id="uploadArea" class="upload-box-border upload-box-hover border-2 dashed rounded-lg p-8 sm:p-12 flex flex-col items-center justify-center cursor-pointer mb-2 min-h-[200px] transition-colors">
-                        <div id="uploadInitialState">
-                            <svg class="w-16 h-16 text-gray-400 mb-4 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>
-                            <p class="text-lg text-gray-600 mb-2">Arraste o seu ficheiro para cá ou clique para selecionar.</p>
-                        </div>
-                        <div id="uploadDoneState" class="hidden text-center">
-                            <svg class="w-16 h-16 text-green-500 mb-4 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            <p id="fileNameDisplay" class="text-lg font-semibold text-gray-700"></p>
-                            <p class="text-sm text-gray-500 mt-1">Ficheiro pronto! Clique em "Extrair Agora".</p>
-                        </div>
-                        <input type="file" id="fileInput" class="hidden" accept=".pdf,.doc,.docx,.txt">
+                <div id="uploadArea" class="upload-box-border upload-box-hover border-2 dashed rounded-lg p-8 sm:p-12 flex flex-col items-center justify-center cursor-pointer mb-2 min-h-[200px] transition-colors">
+                    <div id="uploadInitialState">
+                        <svg class="w-16 h-16 text-gray-400 mb-4 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>
+                        <p class="text-lg text-gray-600 mb-2">Arraste o seu ficheiro para cá ou clique para selecionar.</p>
                     </div>
-                    <p class="text-sm text-gray-500 mt-2">Formatos aceites: PDF, DOCX, DOC, TXT</p>
+                    <div id="uploadDoneState" class="hidden text-center">
+                        <svg class="w-16 h-16 text-green-500 mb-4 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <p id="fileNameDisplay" class="text-lg font-semibold text-gray-700"></p>
+                        <p class="text-sm text-gray-500 mt-1">Ficheiro pronto! Clique em "Extrair Agora".</p>
+                    </div>
+                    <input type="file" id="fileInput" class="hidden" accept=".pdf,.doc,.docx,.txt">
                 </div>
+                <p class="text-sm text-gray-500 mt-2">Formatos aceites: PDF, DOCX, DOC, TXT</p>
                                 
                 <button id="extractButton" class="btn-primary-green font-semibold py-3 px-8 rounded-lg text-lg shadow-md mt-8" disabled>Extrair Agora!</button>
             </div>
@@ -194,37 +192,89 @@
             const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
 
             const source = document.getElementById('summaryContent');
+            const sourceStyles = getComputedStyle(source);
             
-            // Para garantir que o jsPDF renderize o HTML corretamente, ele precisa do elemento no DOM
-            // e vamos usar a API de forma que ele renderize o HTML.
-            await pdf.html(source, {
-                callback: function (doc) {
-                    doc.save(`resumo-${lastFileName.replace(/\.[^/.]+$/, "")}.pdf`);
-                },
-                x: 15,
-                y: 15,
-                width: 565, // Largura do conteúdo (A4 é 595.28pt de largura)
-                windowWidth: source.scrollWidth // Usa a largura do conteúdo para a renderização
+            // Define a fonte no jsPDF que corresponda ao CSS
+            pdf.setFont('helvetica', 'normal');
+
+            // Usa html2canvas para renderizar o HTML para uma imagem (canvas)
+            // Isso preserva todo o estilo CSS, incluindo cores, fontes, negrito, etc.
+            const canvas = await html2canvas(source, {
+                scale: 2, // Aumenta a resolução para melhor qualidade no PDF
+                backgroundColor: null, // Fundo transparente
+                useCORS: true
             });
+
+            const imgData = canvas.toDataURL('image/png');
+            const imgProps = pdf.getImageProperties(imgData);
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            
+            const margin = 40; // Margem em pt
+            const contentWidth = pdfWidth - (2 * margin);
+            
+            // Calcula a altura da imagem no PDF mantendo a proporção
+            const imgHeight = (imgProps.height * contentWidth) / imgProps.width;
+            
+            let heightLeft = imgHeight;
+            let position = margin; // Posição vertical inicial
+
+            // Adiciona o título
+            pdf.setFontSize(16);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text(`Resumo de "${lastFileName}"`, margin, position);
+            position += 30;
+
+            // Adiciona a imagem do conteúdo
+            pdf.addImage(imgData, 'PNG', margin, position, contentWidth, imgHeight);
+            heightLeft -= (pdfHeight - position - margin);
+
+            // Adiciona novas páginas se o conteúdo for muito longo
+            while (heightLeft > 0) {
+                position = -imgHeight + position + pdfHeight - margin;
+                pdf.addPage();
+                pdf.addImage(imgData, 'PNG', margin, position, contentWidth, imgHeight);
+                heightLeft -= pdfHeight;
+            }
+            
+            // Adiciona o rodapé em todas as páginas
+            const pageCount = pdf.internal.getNumberOfPages();
+            for(let i = 1; i <= pageCount; i++) {
+                pdf.setPage(i);
+                pdf.setFontSize(8);
+                pdf.setTextColor(150);
+                pdf.text(`Extraído com Extraia.ai - ${new Date().toLocaleDateString()}`, margin, pdfHeight - 20);
+            }
+
+            pdf.save(`resumo-${lastFileName.replace(/\.[^/.]+$/, "")}.pdf`);
         }
         
         async function shareResults() {
             if (!lastSummaryText) return;
             const shareData = { title: `Resumo de "${lastFileName}"`, text: `Confira o resumo que fiz com o Extraia.ai:\n\n${lastSummaryText.substring(0, 200)}...`, url: window.location.href };
+            
             if (navigator.share) {
-                try { await navigator.share(shareData); } catch (err) { console.error('Erro ao compartilhar:', err); }
+                try { 
+                    await navigator.share(shareData);
+                    console.log('Resumo partilhado com sucesso!');
+                } catch (err) { 
+                    console.error('Erro ao partilhar:', err);
+                }
             } else {
+                // Fallback para desktop: copia o link e dá feedback ao utilizador
                 navigator.clipboard.writeText(window.location.href).then(() => {
-                    alert('A função de partilha nativa não está disponível. O link da página foi copiado para a sua área de transferência!');
+                    const originalText = shareButton.innerHTML;
+                    shareButton.textContent = 'Link Copiado!';
+                    setTimeout(() => {
+                        shareButton.innerHTML = originalText;
+                    }, 2000);
                 });
             }
         }
 
         function setLoadingState(isLoading) {
-            mainContent.classList.add(isLoading ? 'hidden' : 'block');
-            mainContent.classList.remove(isLoading ? 'block' : 'hidden');
-            loadingSpinner.classList.add(isLoading ? 'block' : 'hidden');
-            loadingSpinner.classList.remove(isLoading ? 'hidden' : 'block');
+            mainContent.classList.toggle('hidden', isLoading);
+            loadingSpinner.classList.toggle('hidden', !isLoading);
         }
         
         function showError(message) {
