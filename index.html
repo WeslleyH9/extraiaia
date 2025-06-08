@@ -8,13 +8,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         body { font-family: 'Nunito', sans-serif; background-color: #f7fafc; color: #2D3748; display: flex; flex-direction: column; min-height: 100vh; }
         .primary-green-text { color: #2F855A; }
-        .tab { cursor: pointer; padding: 0.75rem 1.5rem; border-bottom: 3px solid transparent; transition: all 0.2s; color: #718096; }
-        .tab.active { color: #2F855A; border-bottom-color: #2F855A; font-weight: 700; }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
         .upload-box-border { border-color: #B2F5EA; }
         .upload-box-hover:hover { background-color: #f0fdfa; border-color: #38A169; }
         .btn-primary-green { background-color: #2F855A; color: white; transition: background-color 0.2s ease-in-out; }
@@ -52,9 +49,7 @@
             <div id="mainContent">
                 <h1 class="text-3xl sm:text-4xl font-bold primary-green-text mb-6">A sua inteligência artificial para decifrar documentos.</h1>
 
-                <div class="mb-4 border-b border-gray-200"><nav class="flex -mb-px" aria-label="Tabs"><button id="tabUpload" class="tab active">Enviar Ficheiro</button><button id="tabPaste" class="tab">Colar Texto</button></nav></div>
-
-                <div id="contentUpload" class="tab-content active">
+                <div id="contentUpload">
                     <div id="uploadArea" class="upload-box-border upload-box-hover border-2 dashed rounded-lg p-8 sm:p-12 flex flex-col items-center justify-center cursor-pointer mb-2 min-h-[200px] transition-colors">
                         <div id="uploadInitialState">
                             <svg class="w-16 h-16 text-gray-400 mb-4 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>
@@ -69,9 +64,7 @@
                     </div>
                     <p class="text-sm text-gray-500 mt-2">Formatos aceites: PDF, DOCX, DOC, TXT</p>
                 </div>
-                
-                <div id="contentPaste" class="tab-content"><textarea id="textInput" class="w-full h-48 p-4 border-2 border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500 transition" placeholder="Cole aqui o seu texto..."></textarea></div>
-                
+                                
                 <button id="extractButton" class="btn-primary-green font-semibold py-3 px-8 rounded-lg text-lg shadow-md mt-8" disabled>Extrair Agora!</button>
             </div>
             
@@ -95,13 +88,8 @@
 
     <script>
         document.getElementById('currentYear').textContent = new Date().getFullYear();
-        const tabUpload = document.getElementById('tabUpload');
-        const tabPaste = document.getElementById('tabPaste');
-        const contentUpload = document.getElementById('contentUpload');
-        const contentPaste = document.getElementById('contentPaste');
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
-        const textInput = document.getElementById('textInput');
         const extractButton = document.getElementById('extractButton');
         const mainContent = document.getElementById('mainContent');
         const loadingSpinner = document.getElementById('loadingSpinner');
@@ -119,16 +107,12 @@
 
         let lastSummaryText = '';
         let lastFileName = 'resumo';
-        let currentMode = 'upload';
         
         const BACKEND_URL = 'https://extraiaia.onrender.com/api/extract';
 
         // --- Event Listeners ---
-        tabUpload.addEventListener('click', () => switchTab('upload'));
-        tabPaste.addEventListener('click', () => switchTab('paste'));
         uploadArea.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', handleFileSelect);
-        textInput.addEventListener('input', handleTextInput);
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(e => { document.body.addEventListener(e, preventDefaults, false); uploadArea.addEventListener(e, preventDefaults, false); });
         ['dragenter', 'dragover'].forEach(e => uploadArea.addEventListener(e, () => uploadArea.classList.add('bg-green-50', 'border-green-500'), false));
         ['dragleave', 'drop'].forEach(e => uploadArea.addEventListener(e, () => uploadArea.classList.remove('bg-green-50', 'border-green-500'), false));
@@ -140,44 +124,16 @@
         shareButton.addEventListener('click', shareResults);
 
         // --- Funções ---
-        function switchTab(mode) {
-            currentMode = mode;
-            if (mode === 'upload') {
-                tabUpload.classList.add('active');
-                tabPaste.classList.remove('active');
-                contentUpload.classList.add('active');
-                contentPaste.classList.remove('active');
-                validateInput();
-            } else {
-                tabUpload.classList.remove('active');
-                tabPaste.classList.add('active');
-                contentUpload.classList.remove('active');
-                contentPaste.classList.add('active');
-                validateInput();
-            }
-        }
-
         function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
         function handleFileSelect(event) { if (event.target.files.length > 0) processFile(event.target.files[0]); }
         function handleDrop(event) { if (event.dataTransfer.files.length > 0) { fileInput.files = event.dataTransfer.files; processFile(event.dataTransfer.files[0]); } }
-        function handleTextInput() { validateInput(); }
         
-        function validateInput() {
-            let isValid = false;
-            if (currentMode === 'upload' && fileInput.files.length > 0) {
-                isValid = true;
-            } else if (currentMode === 'paste' && textInput.value.trim().length > 0) {
-                isValid = true;
-            }
-            extractButton.disabled = !isValid;
-        }
-
         function processFile(file) {
             lastFileName = file.name;
             fileNameDisplay.textContent = file.name;
             uploadInitialState.classList.add('hidden');
             uploadDoneState.classList.remove('hidden');
-            validateInput();
+            extractButton.disabled = false;
             errorMessage.classList.add('hidden');
         }
         
@@ -186,35 +142,25 @@
             resultDisplayContainer.classList.add('hidden');
             errorMessage.classList.add('hidden');
             fileInput.value = '';
-            textInput.value = '';
             uploadInitialState.classList.remove('hidden');
             uploadDoneState.classList.add('hidden');
-            validateInput();
+            extractButton.disabled = true;
         }
 
         async function callBackend() {
-            let body;
-            let headers = {};
-            if (currentMode === 'upload') {
-                if (!fileInput.files || fileInput.files.length === 0) { showError('Por favor, selecione um ficheiro primeiro.'); return; }
-                const file = fileInput.files[0];
-                const formData = new FormData();
-                formData.append('document', file);
-                body = formData;
-                lastFileName = file.name;
-            } else {
-                if (textInput.value.trim().length === 0) { showError('Por favor, cole algum texto na caixa.'); return; }
-                body = JSON.stringify({ text: textInput.value });
-                headers['Content-Type'] = 'application/json';
-                lastFileName = 'texto_colado';
-            }
+            if (!fileInput.files || fileInput.files.length === 0) { showError('Por favor, selecione um ficheiro primeiro.'); return; }
+            const file = fileInput.files[0];
             setLoadingState(true);
+
+            const formData = new FormData();
+            formData.append('document', file);
+            
             try {
-                const response = await fetch(BACKEND_URL, { method: 'POST', headers: headers, body: body });
+                const response = await fetch(BACKEND_URL, { method: 'POST', body: formData });
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.error || result.details || `Erro do servidor: ${response.status}`);
                 lastSummaryText = result.summary;
-                displaySummary(result.summary, lastFileName);
+                displaySummary(result.summary, file.name);
             } catch (error) {
                 console.error("Erro na chamada ao backend:", error);
                 showError(`Erro: ${error.message}`);
@@ -245,19 +191,21 @@
         async function exportResultsToPdf() {
             if (!lastSummaryText) return;
             const { jsPDF } = window.jspdf;
-            const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(16);
-            doc.text(`Resumo de "${lastFileName}"`, 40, 40);
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(11);
-            const textForPdf = lastSummaryText.replace(/### (.*)/g, '\n\n$1\n--------------------------\n').replace(/## (.*)/g, '\n\n$1\n==========================\n').replace(/# (.*)/g, '\n\n$1\n==========================\n').replace(/\* \s*(.*)/g, '\n  - $1').replace(/`([^`]+)`/g, '$1').replace(/\*\*(.*)\*\*/g, '$1').replace(/__(.*)__/g, '$1');
-            const splitText = doc.splitTextToSize(textForPdf, 500);
-            doc.text(splitText, 40, 70);
-            doc.setFontSize(8);
-            doc.setTextColor(150);
-            doc.text(`Extraído com Extraia.ai - ${new Date().toLocaleDateString()}`, 40, 820);
-            doc.save(`resumo-${lastFileName.replace(/\.[^/.]+$/, "")}.pdf`);
+            const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
+
+            const source = document.getElementById('summaryContent');
+            
+            // Para garantir que o jsPDF renderize o HTML corretamente, ele precisa do elemento no DOM
+            // e vamos usar a API de forma que ele renderize o HTML.
+            await pdf.html(source, {
+                callback: function (doc) {
+                    doc.save(`resumo-${lastFileName.replace(/\.[^/.]+$/, "")}.pdf`);
+                },
+                x: 15,
+                y: 15,
+                width: 565, // Largura do conteúdo (A4 é 595.28pt de largura)
+                windowWidth: source.scrollWidth // Usa a largura do conteúdo para a renderização
+            });
         }
         
         async function shareResults() {
