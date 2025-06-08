@@ -198,7 +198,6 @@
                 const { jsPDF } = window.jspdf;
                 const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
                 
-                // Pega o elemento HTML que contém o resumo já renderizado com Markdown
                 const source = document.getElementById('contentToPrint');
                 
                 // Usa a API HTML do jsPDF, que utiliza html2canvas por baixo, para renderizar o HTML
