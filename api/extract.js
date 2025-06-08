@@ -34,28 +34,21 @@ async function extractTextFromPdf(filePath) {
     });
 }
 
-// Função que chama o Gemini para extrair dados estruturados
-async function getStructuredDataFromText(text) {
+// Função que chama o Gemini para criar um resumo inteligente
+async function getIntelligentSummaryFromText(text) {
     const truncatedText = text.substring(0, 900000); 
     
+    // NOVO PROMPT GENÉRICO
     const prompt = `
-      Você é um especialista em analisar documentos como editais de concurso, vestibulares e currículos.
-      Analise o texto a seguir e extraia as informações mais importantes.
-      Responda APENAS com um objeto JSON. Não inclua texto ou marcadores de formatação como \`\`\`json antes ou depois do objeto JSON.
+      Você é um especialista em análise de textos e resumo. Sua tarefa é ler o texto a seguir e extrair os pontos-chave,
+      as ideias principais e as informações mais importantes. O objetivo é criar um resumo conciso e de fácil entendimento
+      que capture a essência do documento.
 
-      O formato do JSON deve ser:
-      {
-        "nomeConcursoOuVaga": "string ou null",
-        "instituicaoOrganizadora": "string ou null",
-        "principaisCargos": ["string"],
-        "salarioBase": "string ou null",
-        "beneficios": ["string"],
-        "escolaridadeExigida": "string ou null",
-        "periodoInscricao": { "inicio": "string ou null", "fim": "string ou null" },
-        "valorInscricao": "string ou null",
-        "dataProva": "string ou null",
-        "principaisEtapas": ["string"]
-      }
+      Instruções:
+      - Identifique o tema principal e os subtemas.
+      - Extraia dados cruciais como nomes, datas, locais, valores, conclusões ou ações necessárias.
+      - Apresente o resultado usando formatação Markdown para clareza (títulos, listas com marcadores, negrito).
+      - Seja objetivo. Não adicione opiniões ou informações que não estejam no texto.
       
       Texto para análise:
       ---
@@ -63,32 +56,13 @@ async function getStructuredDataFromText(text) {
       ---
     `;
 
-    console.log("[INFO] Chamando API do Gemini...");
+    console.log("[INFO] Chamando API do Gemini para resumo inteligente...");
     const result = await model.generateContent(prompt);
     const response = await result.response;
-    const jsonText = response.text();
-    console.log("[INFO] Resposta bruta do Gemini recebida.");
+    const summaryText = response.text();
+    console.log("[SUCCESS] Resumo do Gemini recebido.");
 
-    // Tenta limpar e analisar a resposta JSON
-    try {
-        // CORREÇÃO: Lógica mais robusta para limpar a resposta da IA
-        const startIndex = jsonText.indexOf('{');
-        const endIndex = jsonText.lastIndexOf('}');
-        
-        if (startIndex === -1 || endIndex === -1) {
-            throw new Error("Não foi possível encontrar um objeto JSON na resposta da IA.");
-        }
-        
-        const cleanedJsonText = jsonText.substring(startIndex, endIndex + 1);
-        const structuredData = JSON.parse(cleanedJsonText);
-
-        console.log("[SUCCESS] Resposta do Gemini analisada como JSON.");
-        return structuredData;
-    } catch (e) {
-        console.error("[ERROR] Falha ao analisar a resposta JSON do Gemini.", e);
-        console.error("[DEBUG] Resposta bruta que falhou:", jsonText);
-        throw new Error("A IA retornou uma resposta em um formato inválido.");
-    }
+    return summaryText;
 }
 
 export default async function handler(req, res) {
@@ -132,11 +106,12 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: "Não foi possível extrair texto do documento." });
         }
 
-        const structuredData = await getStructuredDataFromText(extractedText);
+        // AGORA, CHAMAMOS A IA COM O NOVO PROMPT
+        const intelligentSummary = await getIntelligentSummaryFromText(extractedText);
 
         res.status(200).json({
             message: `Arquivo "${originalFilename}" analisado pela IA com sucesso!`,
-            structuredData: structuredData
+            summary: intelligentSummary // Enviamos o resumo em texto/Markdown para o frontend
         });
 
     } catch (error) {
