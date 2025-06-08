@@ -12,28 +12,28 @@
         /* Estilos personalizados que definimos anteriormente */
         body {
             font-family: 'Nunito', sans-serif;
-            background-color: #f7fafc; /* Branco gelo */
-            color: #2D3748; /* Cinza escuro para texto padrão */
+            background-color: #f7fafc;
+            color: #2D3748;
             display: flex;
             flex-direction: column;
             min-height: 100vh;
         }
         .primary-green-text {
-            color: #2F855A; /* Verde escuro para textos de destaque */
+            color: #2F855A;
         }
         .upload-box-border {
-            border-color: #B2F5EA; /* Borda verde menta claro */
+            border-color: #B2F5EA;
         }
         .upload-box-hover:hover {
             background-color: #f0fdfa;
-            border-color: #38A169; /* Verde mais forte na borda ao passar o mouse */
+            border-color: #38A169;
         }
         .btn-primary-green {
-            background-color: #2F855A; /* Verde escuro para botão */
+            background-color: #2F855A;
             color: white;
         }
-        .btn-primary-green:hover:not(:disabled) { /* Adicionado :not(:disabled) para o hover */
-            background-color: #276749; /* Verde mais escuro no hover */
+        .btn-primary-green:hover:not(:disabled) {
+            background-color: #276749;
         }
         .logo-icon svg {
             width: 32px;
@@ -41,25 +41,25 @@
             margin-right: 8px;
         }
         .logo-text {
-            font-size: 1.75rem; /* 28px */
+            font-size: 1.75rem;
             font-weight: 700;
-            color: #2D3748; /* Cinza escuro para o texto do logo */
+            color: #2D3748;
         }
         .logo-text .ai {
-            color: #2F855A; /* Verde escuro para o ".ai" */
+            color: #2F855A;
             font-weight: 700;
         }
         /* Estilo para a área de resultado da prévia */
         #resultDisplayContainer {
-            background-color: #EDF2F7; /* Cinza claro para o fundo da área de resultado */
-            border: 1px solid #E2E8F0; /* Borda cinza claro */
-            max-height: 300px; /* Altura máxima, com scroll se necessário */
-            overflow-y: auto; /* Scroll vertical */
+            background-color: #EDF2F7;
+            border: 1px solid #E2E8F0;
+            max-height: 300px;
+            overflow-y: auto;
         }
         #resultDisplayContainer pre {
-             white-space: pre-wrap; /* Mantém quebras de linha e espaços */
-             word-wrap: break-word; /* Quebra palavras longas */
-             font-size: 0.875rem; /* Tamanho de fonte um pouco menor para a prévia */
+             white-space: pre-wrap;
+             word-wrap: break-word;
+             font-size: 0.875rem;
         }
     </style>
 </head>
@@ -103,7 +103,6 @@
             </button>
             <div id="fileNameDisplay" class="text-gray-700 mt-4 text-sm"></div>
             
-            <!-- Spinner de Carregamento -->
             <div id="loadingSpinner" class="mt-4 hidden">
                  <svg class="animate-spin h-8 w-8 text-green-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -112,10 +111,8 @@
                   <p class="text-sm text-gray-600 mt-2">Processando seu documento...</p>
             </div>
             
-            <!-- Mensagem de Erro do Frontend/Backend -->
             <div id="errorMessage" class="text-red-600 mt-4 text-sm p-3 bg-red-100 border border-red-400 rounded hidden"></div>
 
-            <!-- Área para exibir a prévia do texto extraído -->
             <div id="resultDisplayContainer" class="mt-6 p-4 rounded-md text-left hidden">
                 <h3 id="resultTitle" class="font-semibold text-gray-800 mb-2"></h3>
                 <pre id="resultTextPreview" class="text-gray-700"></pre>
@@ -128,7 +125,7 @@
     <footer class="py-6 px-4 sm:px-6 lg:px-8 w-full mt-auto">
         <div class="max-w-6xl mx-auto text-center sm:flex sm:justify-between sm:text-left">
             <div class="mb-2 sm:mb-0">
-                <a href="mailto:iaextraia@gmail.com" id="contactLink" class="text-sm text-gray-500 hover:text-gray-700 transition-colors">Contato</a>
+                <a href="mailto:iaextraia@gmail.com" class="text-sm text-gray-500 hover:text-gray-700 transition-colors">Contato</a>
             </div>
             <p class="text-sm text-gray-500">
                 &copy; <span id="currentYear"></span> Extraia.ai
@@ -149,6 +146,13 @@
         const resultTitle = document.getElementById('resultTitle');
         const resultTextPreview = document.getElementById('resultTextPreview');
         const resultMessage = document.getElementById('resultMessage');
+        
+        // ***************************************************************
+        // ***** MUDANÇA CRUCIAL AQUI *****
+        // ***************************************************************
+        // Substitua a URL abaixo pela URL do seu serviço no Render.com
+        const BACKEND_URL = 'https://extraiaia.onrender.com/api/extract';
+        // ***************************************************************
 
         uploadArea.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', handleFileSelect);
@@ -207,7 +211,7 @@
             extractButton.classList.remove('opacity-50', 'cursor-not-allowed');
             extractButton.classList.add('hover:bg-green-700');
             errorMessage.classList.add('hidden');
-            resultDisplayContainer.classList.add('hidden'); // Esconde resultados antigos
+            resultDisplayContainer.classList.add('hidden');
         }
 
         extractButton.addEventListener('click', async () => {
@@ -225,18 +229,19 @@
             extractButton.classList.remove('hover:bg-green-700');
             errorMessage.classList.add('hidden');
             resultDisplayContainer.classList.add('hidden');
-            fileNameDisplay.textContent = `Processando: ${file.name}`;
+            fileNameDisplay.textContent = `Processando: ${file.name}... (Isso pode levar até 30s no primeiro uso)`;
 
             const formData = new FormData();
             formData.append('document', file);
 
             try {
-                const response = await fetch('/api/extract', {
+                // A chamada agora usa a variável BACKEND_URL
+                const response = await fetch(BACKEND_URL, {
                     method: 'POST',
                     body: formData
                 });
                 
-                fileInput.value = ''; // Limpa o input de arquivo para permitir re-upload do mesmo arquivo
+                fileInput.value = '';
 
                 if (!response.ok) {
                     let errorData;
