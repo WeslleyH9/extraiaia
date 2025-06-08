@@ -203,7 +203,12 @@
                 const canvas = await html2canvas(source, {
                     scale: 2, 
                     backgroundColor: null,
-                    useCORS: true
+                    useCORS: true,
+                    // Garante que o html2canvas capture todo o conteúdo, mesmo o que está fora da vista
+                    height: source.scrollHeight, 
+                    width: source.scrollWidth,
+                    windowHeight: source.scrollHeight,
+                    windowWidth: source.scrollWidth
                 });
 
                 const imgData = canvas.toDataURL('image/png');
@@ -265,7 +270,7 @@
             } else {
                 navigator.clipboard.writeText(window.location.href).then(() => {
                     const originalText = shareButton.innerHTML;
-                    shareButton.textContent = 'Link Copiado!';
+                    shareButton.innerHTML = 'Link Copiado!';
                     setTimeout(() => {
                         shareButton.innerHTML = originalText;
                     }, 2000);
