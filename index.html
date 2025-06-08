@@ -7,7 +7,9 @@
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Google Fonts - Nunito -->
-    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <!-- jsPDF para exportar PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         body {
             font-family: 'Nunito', sans-serif;
@@ -47,17 +49,30 @@
             color: #2F855A;
             font-weight: 700;
         }
-        #resultDisplayContainer {
-            background-color: #F7FAFC;
+        .result-card {
+            background-color: white;
             border: 1px solid #E2E8F0;
-            max-height: 400px;
-            overflow-y: auto;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.05);
         }
-        #resultDisplayContainer pre {
-             white-space: pre-wrap;
-             word-wrap: break-word;
-             font-size: 0.875rem;
-             color: #4A5568;
+        .result-item {
+            display: flex;
+            align-items: flex-start;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #F1F5F9;
+        }
+        .result-item:last-child {
+            border-bottom: none;
+        }
+        .result-label {
+            font-weight: 600;
+            color: #4A5568;
+            width: 160px; /* Largura fixa para os rótulos */
+            flex-shrink: 0; /* Impede que o rótulo encolha */
+        }
+        .result-value {
+            color: #1A202C;
+            flex-grow: 1;
         }
     </style>
 </head>
@@ -80,41 +95,56 @@
     <!-- Conteúdo Principal -->
     <main class="flex-grow flex flex-col items-center justify-center text-center px-4 py-12">
         <div class="max-w-2xl w-full">
-            <h1 class="text-3xl sm:text-4xl font-bold primary-green-text mb-8">
-                Sua inteligência artificial para decifrar documentos.
-            </h1>
+            <div id="mainContent">
+                <h1 class="text-3xl sm:text-4xl font-bold primary-green-text mb-8">
+                    Sua inteligência artificial para decifrar documentos.
+                </h1>
 
-            <div id="uploadArea" class="upload-box-border upload-box-hover border-2 dashed rounded-lg p-8 sm:p-12 flex flex-col items-center justify-center cursor-pointer mb-6 min-h-[200px] transition-colors">
-                <svg class="w-16 h-16 text-gray-400 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-                </svg>
-                <p class="text-lg text-gray-600 mb-2">Arraste seu arquivo para cá ou clique para selecionar.</p>
-                <input type="file" id="fileInput" class="hidden" accept=".pdf,.doc,.docx,.txt">
+                <div id="uploadArea" class="upload-box-border upload-box-hover border-2 dashed rounded-lg p-8 sm:p-12 flex flex-col items-center justify-center cursor-pointer mb-6 min-h-[200px] transition-colors">
+                    <svg class="w-16 h-16 text-gray-400 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                    </svg>
+                    <p class="text-lg text-gray-600 mb-2">Arraste seu arquivo para cá ou clique para selecionar.</p>
+                    <input type="file" id="fileInput" class="hidden" accept=".pdf,.doc,.docx,.txt">
+                </div>
+
+                <p class="text-sm text-gray-500 mb-8">
+                    Formatos aceitos: PDF, DOCX, DOC, TXT
+                </p>
+
+                <button id="extractButton" class="btn-primary-green font-semibold py-3 px-8 rounded-lg text-lg shadow-md" disabled>
+                    Extrair Agora!
+                </button>
             </div>
-
-            <p class="text-sm text-gray-500 mb-8">
-                Formatos aceitos: PDF, DOCX, DOC, TXT
-            </p>
-
-            <button id="extractButton" class="btn-primary-green font-semibold py-3 px-8 rounded-lg text-lg shadow-md" disabled>
-                Extrair Agora!
-            </button>
-            <div id="fileNameDisplay" class="text-gray-700 mt-4 text-sm"></div>
             
             <div id="loadingSpinner" class="mt-4 hidden">
                  <svg class="animate-spin h-8 w-8 text-green-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  <p class="text-sm text-gray-600 mt-2">Processando seu documento...</p>
+                  <p class="text-sm text-gray-600 mt-2">Decifrando seu documento... (Isso pode levar até 30s no primeiro uso)</p>
             </div>
             
             <div id="errorMessage" class="text-red-600 mt-4 text-sm p-3 bg-red-100 border border-red-400 rounded hidden"></div>
 
-            <div id="resultDisplayContainer" class="mt-6 p-4 rounded-md text-left hidden">
-                <h3 id="resultTitle" class="font-semibold text-gray-800 mb-2"></h3>
-                <pre id="resultTextPreview" class="text-gray-700"></pre>
-                <p id="resultMessage" class="mt-2 text-xs text-gray-500"></p>
+            <!-- Área de Resultados Estruturados -->
+            <div id="resultDisplayContainer" class="mt-6 p-6 text-left hidden result-card">
+                <h3 id="resultTitle" class="text-xl font-bold text-gray-800 mb-4 pb-2 border-b"></h3>
+                <div id="resultData" class="space-y-2"></div>
+                <div class="mt-6 flex flex-wrap gap-4">
+                    <button id="copyButton" class="bg-gray-200 text-gray-700 hover:bg-gray-300 font-semibold py-2 px-4 rounded-lg flex items-center">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                        Copiar Tudo
+                    </button>
+                    <button id="pdfButton" class="bg-red-500 text-white hover:bg-red-600 font-semibold py-2 px-4 rounded-lg flex items-center">
+                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        Exportar PDF
+                    </button>
+                    <button id="newFileButton" class="btn-primary-green font-semibold py-2 px-4 rounded-lg flex items-center ml-auto">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h5M20 20v-5h-5M4 20v-5h5M20 4v5h-5"></path></svg>
+                        Analisar Outro Documento
+                    </button>
+                </div>
             </div>
         </div>
     </main>
@@ -134,42 +164,45 @@
     <script>
         document.getElementById('currentYear').textContent = new Date().getFullYear();
 
+        // Elementos do DOM
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
         const extractButton = document.getElementById('extractButton');
-        const fileNameDisplay = document.getElementById('fileNameDisplay');
+        const mainContent = document.getElementById('mainContent');
         const loadingSpinner = document.getElementById('loadingSpinner');
         const errorMessage = document.getElementById('errorMessage');
         const resultDisplayContainer = document.getElementById('resultDisplayContainer');
         const resultTitle = document.getElementById('resultTitle');
-        const resultTextPreview = document.getElementById('resultTextPreview');
-        const resultMessage = document.getElementById('resultMessage');
+        const resultDataEl = document.getElementById('resultData');
+        const copyButton = document.getElementById('copyButton');
+        const pdfButton = document.getElementById('pdfButton');
+        const newFileButton = document.getElementById('newFileButton');
+
+        let lastStructuredData = null;
+        let lastFileName = '';
         
         // ***************************************************************
-        // ***** MUDANÇA CRUCIAL AQUI *****
+        // URL do Backend no Render.com JÁ CONFIGURADA
         // ***************************************************************
-        // Substitua a URL abaixo pela URL do seu serviço no Render.com, adicionando o caminho /api/extract
         const BACKEND_URL = 'https://extraiaia.onrender.com/api/extract';
         // ***************************************************************
 
+        // --- Event Listeners ---
         uploadArea.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', handleFileSelect);
-
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            uploadArea.addEventListener(eventName, preventDefaults, false);
-            document.body.addEventListener(eventName, preventDefaults, false);
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(e => {
+            document.body.addEventListener(e, preventDefaults, false);
+            uploadArea.addEventListener(e, preventDefaults, false);
         });
-
-        ['dragenter', 'dragover'].forEach(eventName => {
-            uploadArea.addEventListener(eventName, () => uploadArea.classList.add('bg-green-50', 'border-green-500'), false);
-        });
-
-        ['dragleave', 'drop'].forEach(eventName => {
-            uploadArea.addEventListener(eventName, () => uploadArea.classList.remove('bg-green-50', 'border-green-500'), false);
-        });
-
+        ['dragenter', 'dragover'].forEach(e => uploadArea.addEventListener(e, () => uploadArea.classList.add('bg-green-50', 'border-green-500'), false));
+        ['dragleave', 'drop'].forEach(e => uploadArea.addEventListener(e, () => uploadArea.classList.remove('bg-green-50', 'border-green-500'), false));
         uploadArea.addEventListener('drop', handleDrop, false);
+        extractButton.addEventListener('click', callBackend);
+        copyButton.addEventListener('click', copyResultsToClipboard);
+        pdfButton.addEventListener('click', exportResultsToPdf);
+        newFileButton.addEventListener('click', resetUI);
 
+        // --- Funções ---
         function preventDefaults(e) {
             e.preventDefault();
             e.stopPropagation();
@@ -189,82 +222,211 @@
         }
 
         function processFile(file) {
-            const allowedExtensions = ['.pdf', '.doc', '.docx', '.txt'];
-            const fileNameLower = file.name.toLowerCase();
-            const fileExtensionIsValid = allowedExtensions.some(ext => fileNameLower.endsWith(ext));
-
-            if (!fileExtensionIsValid) {
-                fileNameDisplay.textContent = '';
-                errorMessage.textContent = `Formato de arquivo não suportado. Use PDF, DOC, DOCX ou TXT.`;
-                errorMessage.classList.remove('hidden');
-                resultDisplayContainer.classList.add('hidden');
-                extractButton.disabled = true;
-                return;
-            }
-
-            fileNameDisplay.textContent = `Arquivo selecionado: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+            lastFileName = file.name;
             extractButton.disabled = false;
+            extractButton.classList.remove('opacity-50', 'cursor-not-allowed');
             errorMessage.classList.add('hidden');
-            resultDisplayContainer.classList.add('hidden');
         }
 
-        extractButton.addEventListener('click', async () => {
+        function resetUI() {
+            mainContent.classList.remove('hidden');
+            resultDisplayContainer.classList.add('hidden');
+            errorMessage.classList.add('hidden');
+            fileInput.value = '';
+            extractButton.disabled = true;
+            extractButton.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+
+        async function callBackend() {
             if (!fileInput.files || fileInput.files.length === 0) {
-                errorMessage.textContent = 'Por favor, selecione um arquivo primeiro.';
-                errorMessage.classList.remove('hidden');
-                resultDisplayContainer.classList.add('hidden');
+                showError('Por favor, selecione um arquivo primeiro.');
                 return;
             }
             const file = fileInput.files[0];
-
-            loadingSpinner.classList.remove('hidden');
-            extractButton.disabled = true;
-            errorMessage.classList.add('hidden');
-            resultDisplayContainer.classList.add('hidden');
-            fileNameDisplay.textContent = `Processando: ${file.name}... (Isso pode levar até 30s no primeiro uso)`;
+            setLoadingState(true);
 
             const formData = new FormData();
             formData.append('document', file);
 
             try {
-                // A chamada agora usa a variável BACKEND_URL
                 const response = await fetch(BACKEND_URL, {
                     method: 'POST',
                     body: formData
                 });
                 
-                fileInput.value = '';
+                const result = await response.json();
 
                 if (!response.ok) {
-                    let errorData;
-                    try {
-                        errorData = await response.json();
-                    } catch (e) {
-                        errorData = { message: `Erro do servidor: ${response.status} ${response.statusText}` };
-                    }
-                    throw new Error(errorData.error || errorData.details || errorData.message || `Erro do servidor: ${response.status}`);
+                    throw new Error(result.error || result.details || `Erro do servidor: ${response.status}`);
                 }
 
-                const resultData = await response.json();
-                console.log("Backend respondeu:", resultData);
-
-                resultTitle.textContent = `Prévia do Texto Extraído de "${file.name}":`;
-                resultTextPreview.textContent = resultData.extractedTextPreview || "Nenhum texto prévio retornado.";
-                resultMessage.textContent = resultData.message || "";
-                resultDisplayContainer.classList.remove('hidden');
-                
-                fileNameDisplay.textContent = `Processamento concluído para: ${file.name}`;
+                console.log("Backend respondeu:", result);
+                lastStructuredData = result.structuredData;
+                displayStructuredResults(result.structuredData, file.name);
 
             } catch (error) {
                 console.error("Erro na chamada ao backend ou ao processar resposta:", error);
-                errorMessage.textContent = `Erro: ${error.message}`;
-                errorMessage.classList.remove('hidden');
-                fileNameDisplay.textContent = `Falha ao processar: ${file.name}`;
+                showError(`Erro: ${error.message}`);
             } finally {
-                loadingSpinner.classList.add('hidden');
-                extractButton.disabled = false;
+                setLoadingState(false);
             }
-        });
+        }
+
+        function displayStructuredResults(data, fileName) {
+            if (!data) {
+                showError("A IA não conseguiu retornar dados estruturados do documento.");
+                return;
+            }
+            mainContent.classList.add('hidden');
+            resultTitle.textContent = `Informações Extraídas de "${fileName}"`;
+            
+            resultDataEl.innerHTML = '';
+
+            const formatValue = (value) => {
+                if (!value) return '<span class="text-gray-400">Não encontrado</span>';
+                if (Array.isArray(value)) {
+                    if (value.length === 0) return '<span class="text-gray-400">Não encontrado</span>';
+                    return `<ul class="list-disc list-inside">${value.map(item => `<li>${item}</li>`).join('')}</ul>`;
+                }
+                return value;
+            };
+            
+            const createItem = (label, value) => {
+                if (value) {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'result-item';
+                    itemDiv.innerHTML = `<div class="result-label">${label}</div><div class="result-value">${formatValue(value)}</div>`;
+                    resultDataEl.appendChild(itemDiv);
+                }
+            };
+            
+            createItem('Concurso/Vaga:', data.nomeConcursoOuVaga);
+            createItem('Instituição:', data.instituicaoOrganizadora);
+            createItem('Cargo(s):', data.principaisCargos);
+            createItem('Salário Base:', data.salarioBase);
+            createItem('Benefícios:', data.beneficios);
+            createItem('Escolaridade:', data.escolaridadeExigida);
+            if (data.periodoInscricao && (data.periodoInscricao.inicio || data.periodoInscricao.fim)) {
+                createItem('Inscrições:', `${data.periodoInscricao.inicio || '?'} até ${data.periodoInscricao.fim || '?'}`);
+            }
+            createItem('Valor Inscrição:', data.valorInscricao);
+            createItem('Data da Prova:', data.dataProva);
+            createItem('Etapas:', data.principaisEtapas);
+            
+            resultDisplayContainer.classList.remove('hidden');
+        }
+
+        function copyResultsToClipboard() {
+            if (!lastStructuredData) return;
+            let textToCopy = `Informações Extraídas de "${lastFileName}" com Extraia.ai\n\n`;
+            
+            const appendToText = (label, value) => {
+                if (value) {
+                    if (Array.isArray(value)) {
+                        textToCopy += `${label}: \n${value.map(item => `  - ${item}`).join('\n')}\n`;
+                    } else {
+                        textToCopy += `${label}: ${value}\n`;
+                    }
+                }
+            };
+
+            appendToText('Concurso/Vaga', lastStructuredData.nomeConcursoOuVaga);
+            appendToText('Instituição', lastStructuredData.instituicaoOrganizadora);
+            appendToText('Cargo(s)', lastStructuredData.principaisCargos);
+            appendToText('Salário Base', lastStructuredData.salarioBase);
+            appendToText('Benefícios', lastStructuredData.beneficios);
+            appendToText('Escolaridade', lastStructuredData.escolaridadeExigida);
+            if (lastStructuredData.periodoInscricao) {
+                appendToText('Inscrições', `${lastStructuredData.periodoInscricao.inicio || '?'} até ${lastStructuredData.periodoInscricao.fim || '?'}`);
+            }
+            appendToText('Valor Inscrição', lastStructuredData.valorInscricao);
+            appendToText('Data da Prova', lastStructuredData.dataProva);
+            appendToText('Etapas', lastStructuredData.principaisEtapas);
+
+            // Usando document.execCommand para compatibilidade, já que navigator.clipboard pode ser bloqueado em iframes.
+            const textArea = document.createElement("textarea");
+            textArea.value = textToCopy.trim();
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                alert('Informações copiadas para a área de transferência!');
+            } catch (err) {
+                console.error('Falha ao copiar:', err);
+                alert('Não foi possível copiar as informações.');
+            }
+            document.body.removeChild(textArea);
+        }
+        
+        async function exportResultsToPdf() {
+            if (!lastStructuredData) return;
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+            
+            let y = 40; // Posição vertical inicial
+            const leftMargin = 40;
+            const rightMargin = doc.internal.pageSize.getWidth() - 40;
+
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(16);
+            doc.text(`Resumo do Documento: "${lastFileName}"`, leftMargin, y);
+            y += 25;
+            doc.setFont('helvetica', 'normal');
+
+            const addText = (label, value) => {
+                if (value && y < 780) { // Verifica se há espaço na página
+                    doc.setFontSize(11);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text(`${label}:`, leftMargin, y);
+                    doc.setFont('helvetica', 'normal');
+
+                    let valueText;
+                    if (Array.isArray(value)) {
+                        valueText = value.map(item => `- ${item}`).join('\n');
+                    } else {
+                        valueText = String(value);
+                    }
+                    const splitText = doc.splitTextToSize(valueText, rightMargin - leftMargin - 5); // 5 de margem extra
+                    doc.text(splitText, leftMargin + 5, y + 15);
+                    y += (splitText.length * 12) + 15;
+                }
+                 if (y > 780) { doc.addPage(); y = 40; }
+            };
+            
+            addText('Concurso/Vaga', lastStructuredData.nomeConcursoOuVaga);
+            addText('Instituição', lastStructuredData.instituicaoOrganizadora);
+            addText('Cargo(s)', lastStructuredData.principaisCargos);
+            addText('Salário Base', lastStructuredData.salarioBase);
+            addText('Benefícios', lastStructuredData.beneficios);
+            addText('Escolaridade', lastStructuredData.escolaridadeExigida);
+            if (lastStructuredData.periodoInscricao) {
+                 addText('Inscrições', `${lastStructuredData.periodoInscricao.inicio || '?'} até ${lastStructuredData.periodoInscricao.fim || '?'}`);
+            }
+            addText('Valor Inscrição', lastStructuredData.valorInscricao);
+            addText('Data da Prova', lastStructuredData.dataProva);
+            addText('Etapas', lastStructuredData.principaisEtapas);
+
+            doc.setFontSize(8);
+            doc.setTextColor(150);
+            doc.text(`Extraído com Extraia.ai - ${new Date().toLocaleDateString()}`, leftMargin, 820);
+            
+            doc.save(`resumo-${lastFileName.replace(/\.[^/.]+$/, "")}.pdf`);
+        }
+
+        function setLoadingState(isLoading) {
+            if (isLoading) {
+                mainContent.classList.add('hidden');
+                loadingSpinner.classList.remove('hidden');
+            } else {
+                loadingSpinner.classList.add('hidden');
+            }
+        }
+        
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.remove('hidden');
+            mainContent.classList.remove('hidden'); // Mostra a área de upload novamente
+        }
     </script>
 </body>
 </html>
