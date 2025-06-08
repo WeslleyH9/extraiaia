@@ -188,65 +188,68 @@
         
         async function exportResultsToPdf() {
             if (!lastSummaryText) return;
-            const { jsPDF } = window.jspdf;
-            const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
-
-            const source = document.getElementById('summaryContent');
-            const sourceStyles = getComputedStyle(source);
+            // Mostra temporariamente o spinner enquanto prepara o PDF
+            setLoadingState(true);
+            const originalButtonText = pdfButton.innerHTML;
+            pdfButton.innerHTML = 'A gerar PDF...';
             
-            // Define a fonte no jsPDF que corresponda ao CSS
-            pdf.setFont('helvetica', 'normal');
+            try {
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
 
-            // Usa html2canvas para renderizar o HTML para uma imagem (canvas)
-            // Isso preserva todo o estilo CSS, incluindo cores, fontes, negrito, etc.
-            const canvas = await html2canvas(source, {
-                scale: 2, // Aumenta a resolução para melhor qualidade no PDF
-                backgroundColor: null, // Fundo transparente
-                useCORS: true
-            });
+                const source = document.getElementById('summaryContent');
+                
+                // Usa html2canvas para renderizar o HTML para uma imagem (canvas)
+                const canvas = await html2canvas(source, {
+                    scale: 2, 
+                    backgroundColor: null,
+                    useCORS: true
+                });
 
-            const imgData = canvas.toDataURL('image/png');
-            const imgProps = pdf.getImageProperties(imgData);
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = pdf.internal.pageSize.getHeight();
-            
-            const margin = 40; // Margem em pt
-            const contentWidth = pdfWidth - (2 * margin);
-            
-            // Calcula a altura da imagem no PDF mantendo a proporção
-            const imgHeight = (imgProps.height * contentWidth) / imgProps.width;
-            
-            let heightLeft = imgHeight;
-            let position = margin; // Posição vertical inicial
+                const imgData = canvas.toDataURL('image/png');
+                const imgProps = pdf.getImageProperties(imgData);
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                
+                const margin = 40;
+                const contentWidth = pdfWidth - (2 * margin);
+                const imgHeight = (imgProps.height * contentWidth) / imgProps.width;
+                
+                let heightLeft = imgHeight;
+                let position = margin;
 
-            // Adiciona o título
-            pdf.setFontSize(16);
-            pdf.setFont('helvetica', 'bold');
-            pdf.text(`Resumo de "${lastFileName}"`, margin, position);
-            position += 30;
+                pdf.setFont('helvetica', 'bold');
+                pdf.setFontSize(16);
+                pdf.text(`Resumo de "${lastFileName}"`, margin, position);
+                position += 30;
 
-            // Adiciona a imagem do conteúdo
-            pdf.addImage(imgData, 'PNG', margin, position, contentWidth, imgHeight);
-            heightLeft -= (pdfHeight - position - margin);
-
-            // Adiciona novas páginas se o conteúdo for muito longo
-            while (heightLeft > 0) {
-                position = -imgHeight + position + pdfHeight - margin;
-                pdf.addPage();
                 pdf.addImage(imgData, 'PNG', margin, position, contentWidth, imgHeight);
-                heightLeft -= pdfHeight;
-            }
-            
-            // Adiciona o rodapé em todas as páginas
-            const pageCount = pdf.internal.getNumberOfPages();
-            for(let i = 1; i <= pageCount; i++) {
-                pdf.setPage(i);
-                pdf.setFontSize(8);
-                pdf.setTextColor(150);
-                pdf.text(`Extraído com Extraia.ai - ${new Date().toLocaleDateString()}`, margin, pdfHeight - 20);
-            }
+                heightLeft -= (pdf.internal.pageSize.getHeight() - position - margin);
 
-            pdf.save(`resumo-${lastFileName.replace(/\.[^/.]+$/, "")}.pdf`);
+                while (heightLeft > 0) {
+                    position = -imgHeight + position + pdf.internal.pageSize.getHeight() - margin;
+                    pdf.addPage();
+                    pdf.addImage(imgData, 'PNG', margin, position, contentWidth, imgHeight);
+                    heightLeft -= pdf.internal.pageSize.getHeight();
+                }
+                
+                const pageCount = pdf.internal.getNumberOfPages();
+                for(let i = 1; i <= pageCount; i++) {
+                    pdf.setPage(i);
+                    pdf.setFontSize(8);
+                    pdf.setTextColor(150);
+                    pdf.text(`Extraído com Extraia.ai - ${new Date().toLocaleDateString()}`, margin, pdf.internal.pageSize.getHeight() - 20);
+                }
+
+                pdf.save(`resumo-${lastFileName.replace(/\.[^/.]+$/, "")}.pdf`);
+            } catch(e) {
+                console.error("Erro ao gerar PDF:", e);
+                showError("Ocorreu um erro ao gerar o PDF.");
+            } finally {
+                setLoadingState(false);
+                mainContent.classList.add('hidden'); // Garante que a tela de resultados continue visível
+                resultDisplayContainer.classList.remove('hidden');
+                pdfButton.innerHTML = originalButtonText;
+            }
         }
         
         async function shareResults() {
@@ -256,12 +259,10 @@
             if (navigator.share) {
                 try { 
                     await navigator.share(shareData);
-                    console.log('Resumo partilhado com sucesso!');
                 } catch (err) { 
-                    console.error('Erro ao partilhar:', err);
+                    console.error('Erro ao compartilhar:', err);
                 }
             } else {
-                // Fallback para desktop: copia o link e dá feedback ao utilizador
                 navigator.clipboard.writeText(window.location.href).then(() => {
                     const originalText = shareButton.innerHTML;
                     shareButton.textContent = 'Link Copiado!';
