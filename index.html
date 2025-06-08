@@ -9,7 +9,6 @@
     <!-- Google Fonts - Nunito -->
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        /* Estilos personalizados que definimos anteriormente */
         body {
             font-family: 'Nunito', sans-serif;
             background-color: #f7fafc;
@@ -18,12 +17,8 @@
             flex-direction: column;
             min-height: 100vh;
         }
-        .primary-green-text {
-            color: #2F855A;
-        }
-        .upload-box-border {
-            border-color: #B2F5EA;
-        }
+        .primary-green-text { color: #2F855A; }
+        .upload-box-border { border-color: #B2F5EA; }
         .upload-box-hover:hover {
             background-color: #f0fdfa;
             border-color: #38A169;
@@ -31,9 +26,12 @@
         .btn-primary-green {
             background-color: #2F855A;
             color: white;
+            transition: background-color 0.2s ease-in-out;
         }
-        .btn-primary-green:hover:not(:disabled) {
-            background-color: #276749;
+        .btn-primary-green:hover:not(:disabled) { background-color: #276749; }
+        .btn-primary-green:disabled {
+            background-color: #9AE6B4;
+            cursor: not-allowed;
         }
         .logo-icon svg {
             width: 32px;
@@ -49,17 +47,17 @@
             color: #2F855A;
             font-weight: 700;
         }
-        /* Estilo para a área de resultado da prévia */
         #resultDisplayContainer {
-            background-color: #EDF2F7;
+            background-color: #F7FAFC;
             border: 1px solid #E2E8F0;
-            max-height: 300px;
+            max-height: 400px;
             overflow-y: auto;
         }
         #resultDisplayContainer pre {
              white-space: pre-wrap;
              word-wrap: break-word;
              font-size: 0.875rem;
+             color: #4A5568;
         }
     </style>
 </head>
@@ -98,7 +96,7 @@
                 Formatos aceitos: PDF, DOCX, DOC, TXT
             </p>
 
-            <button id="extractButton" class="btn-primary-green font-semibold py-3 px-8 rounded-lg text-lg shadow-md opacity-50 cursor-not-allowed" disabled>
+            <button id="extractButton" class="btn-primary-green font-semibold py-3 px-8 rounded-lg text-lg shadow-md" disabled>
                 Extrair Agora!
             </button>
             <div id="fileNameDisplay" class="text-gray-700 mt-4 text-sm"></div>
@@ -150,7 +148,7 @@
         // ***************************************************************
         // ***** MUDANÇA CRUCIAL AQUI *****
         // ***************************************************************
-        // Substitua a URL abaixo pela URL do seu serviço no Render.com
+        // Substitua a URL abaixo pela URL do seu serviço no Render.com, adicionando o caminho /api/extract
         const BACKEND_URL = 'https://extraiaia.onrender.com/api/extract';
         // ***************************************************************
 
@@ -201,15 +199,11 @@
                 errorMessage.classList.remove('hidden');
                 resultDisplayContainer.classList.add('hidden');
                 extractButton.disabled = true;
-                extractButton.classList.add('opacity-50', 'cursor-not-allowed');
-                extractButton.classList.remove('hover:bg-green-700');
                 return;
             }
 
-            fileNameDisplay.textContent = `Arquivo selecionado: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`;
+            fileNameDisplay.textContent = `Arquivo selecionado: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
             extractButton.disabled = false;
-            extractButton.classList.remove('opacity-50', 'cursor-not-allowed');
-            extractButton.classList.add('hover:bg-green-700');
             errorMessage.classList.add('hidden');
             resultDisplayContainer.classList.add('hidden');
         }
@@ -225,8 +219,6 @@
 
             loadingSpinner.classList.remove('hidden');
             extractButton.disabled = true;
-            extractButton.classList.add('opacity-50', 'cursor-not-allowed');
-            extractButton.classList.remove('hover:bg-green-700');
             errorMessage.classList.add('hidden');
             resultDisplayContainer.classList.add('hidden');
             fileNameDisplay.textContent = `Processando: ${file.name}... (Isso pode levar até 30s no primeiro uso)`;
@@ -271,8 +263,6 @@
             } finally {
                 loadingSpinner.classList.add('hidden');
                 extractButton.disabled = false;
-                extractButton.classList.remove('opacity-50', 'cursor-not-allowed');
-                extractButton.classList.add('hover:bg-green-700');
             }
         });
     </script>
