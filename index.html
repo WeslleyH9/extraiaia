@@ -11,7 +11,7 @@
     <style>
         body { font-family: 'Nunito', sans-serif; background-color: #f7fafc; color: #2D3748; display: flex; flex-direction: column; min-height: 100vh; }
         .primary-green-text { color: #2F855A; }
-        .tab { cursor: pointer; padding: 0.75rem 1.5rem; border-bottom: 3px solid transparent; transition: all 0.2s; }
+        .tab { cursor: pointer; padding: 0.75rem 1.5rem; border-bottom: 3px solid transparent; transition: all 0.2s; color: #718096; }
         .tab.active { color: #2F855A; border-bottom-color: #2F855A; font-weight: 700; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
@@ -19,7 +19,7 @@
         .upload-box-hover:hover { background-color: #f0fdfa; border-color: #38A169; }
         .btn-primary-green { background-color: #2F855A; color: white; transition: background-color 0.2s ease-in-out; }
         .btn-primary-green:hover:not(:disabled) { background-color: #276749; }
-        .btn-primary-green:disabled { background-color: #9AE6B4; cursor: not-allowed; }
+        .btn-primary-green:disabled { background-color: #9AE6B4; opacity: 0.7; cursor: not-allowed; }
         .logo-icon svg { width: 32px; height: 32px; margin-right: 8px; }
         .logo-text { font-size: 1.75rem; font-weight: 700; color: #2D3748; }
         .logo-text .ai { color: #2F855A; font-weight: 700; }
@@ -41,9 +41,7 @@
     <header class="py-6 px-4 sm:px-6 lg:px-8 w-full">
         <div class="max-w-6xl mx-auto flex items-center">
             <div class="flex items-center logo-icon">
-                <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M20,10 L80,10 L80,70 L60,90 L40,90 L20,70 Z" fill="#E6FFFA" stroke="#2F855A" stroke-width="3"/><path d="M30,10 L30,50 M70,10 L70,50" fill="none" stroke="#B2F5EA" stroke-width="2" stroke-dasharray="3,3"/><path d="M25,60 L75,60" fill="none" stroke="#2F855A" stroke-width="5"/>
-                </svg>
+                <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><path d="M20,10 L80,10 L80,70 L60,90 L40,90 L20,70 Z" fill="#E6FFFA" stroke="#2F855A" stroke-width="3"/><path d="M30,10 L30,50 M70,10 L70,50" fill="none" stroke="#B2F5EA" stroke-width="2" stroke-dasharray="3,3"/><path d="M25,60 L75,60" fill="none" stroke="#2F855A" stroke-width="5"/></svg>
                 <span class="logo-text">Extraia<span class="ai">.ai</span></span>
             </div>
         </div>
@@ -52,36 +50,29 @@
     <main class="flex-grow flex flex-col items-center justify-center text-center px-4 py-12">
         <div class="max-w-3xl w-full">
             <div id="mainContent">
-                <h1 class="text-3xl sm:text-4xl font-bold primary-green-text mb-6">
-                    A sua inteligência artificial para decifrar documentos.
-                </h1>
+                <h1 class="text-3xl sm:text-4xl font-bold primary-green-text mb-6">A sua inteligência artificial para decifrar documentos.</h1>
 
-                <!-- Abas para Upload ou Colar Texto -->
-                <div class="mb-4 border-b border-gray-200">
-                    <nav class="flex -mb-px" aria-label="Tabs">
-                        <button id="tabUpload" class="tab active">Enviar Ficheiro</button>
-                        <button id="tabPaste" class="tab">Colar Texto</button>
-                    </nav>
-                </div>
+                <div class="mb-4 border-b border-gray-200"><nav class="flex -mb-px" aria-label="Tabs"><button id="tabUpload" class="tab active">Enviar Ficheiro</button><button id="tabPaste" class="tab">Colar Texto</button></nav></div>
 
-                <!-- Conteúdo da Aba de Upload -->
                 <div id="contentUpload" class="tab-content active">
                     <div id="uploadArea" class="upload-box-border upload-box-hover border-2 dashed rounded-lg p-8 sm:p-12 flex flex-col items-center justify-center cursor-pointer mb-2 min-h-[200px] transition-colors">
-                        <svg class="w-16 h-16 text-gray-400 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>
-                        <p class="text-lg text-gray-600 mb-2">Arraste o seu ficheiro para cá ou clique para selecionar.</p>
+                        <div id="uploadInitialState">
+                            <svg class="w-16 h-16 text-gray-400 mb-4 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>
+                            <p class="text-lg text-gray-600 mb-2">Arraste o seu ficheiro para cá ou clique para selecionar.</p>
+                        </div>
+                        <div id="uploadDoneState" class="hidden text-center">
+                            <svg class="w-16 h-16 text-green-500 mb-4 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            <p id="fileNameDisplay" class="text-lg font-semibold text-gray-700"></p>
+                            <p class="text-sm text-gray-500 mt-1">Ficheiro pronto! Clique em "Extrair Agora".</p>
+                        </div>
                         <input type="file" id="fileInput" class="hidden" accept=".pdf,.doc,.docx,.txt">
                     </div>
                     <p class="text-sm text-gray-500 mt-2">Formatos aceites: PDF, DOCX, DOC, TXT</p>
                 </div>
                 
-                <!-- Conteúdo da Aba de Colar Texto -->
-                <div id="contentPaste" class="tab-content">
-                    <textarea id="textInput" class="w-full h-48 p-4 border-2 border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500 transition" placeholder="Cole aqui o seu texto..."></textarea>
-                </div>
+                <div id="contentPaste" class="tab-content"><textarea id="textInput" class="w-full h-48 p-4 border-2 border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500 transition" placeholder="Cole aqui o seu texto..."></textarea></div>
                 
-                <button id="extractButton" class="btn-primary-green font-semibold py-3 px-8 rounded-lg text-lg shadow-md mt-8" disabled>
-                    Extrair Agora!
-                </button>
+                <button id="extractButton" class="btn-primary-green font-semibold py-3 px-8 rounded-lg text-lg shadow-md mt-8" disabled>Extrair Agora!</button>
             </div>
             
             <div id="loadingSpinner" class="mt-4 hidden"><svg class="animate-spin h-8 w-8 text-green-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><p class="text-sm text-gray-600 mt-2">A decifrar o seu documento... (Isto pode levar até 30s no primeiro uso)</p></div>
@@ -122,10 +113,13 @@
         const pdfButton = document.getElementById('pdfButton');
         const shareButton = document.getElementById('shareButton');
         const newFileButton = document.getElementById('newFileButton');
+        const uploadInitialState = document.getElementById('uploadInitialState');
+        const uploadDoneState = document.getElementById('uploadDoneState');
+        const fileNameDisplay = document.getElementById('fileNameDisplay');
 
         let lastSummaryText = '';
         let lastFileName = 'resumo';
-        let currentMode = 'upload'; // 'upload' or 'paste'
+        let currentMode = 'upload';
         
         const BACKEND_URL = 'https://extraiaia.onrender.com/api/extract';
 
@@ -134,7 +128,7 @@
         tabPaste.addEventListener('click', () => switchTab('paste'));
         uploadArea.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', handleFileSelect);
-        textInput.addEventListener('input', handleTextPaste);
+        textInput.addEventListener('input', handleTextInput);
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(e => { document.body.addEventListener(e, preventDefaults, false); uploadArea.addEventListener(e, preventDefaults, false); });
         ['dragenter', 'dragover'].forEach(e => uploadArea.addEventListener(e, () => uploadArea.classList.add('bg-green-50', 'border-green-500'), false));
         ['dragleave', 'drop'].forEach(e => uploadArea.addEventListener(e, () => uploadArea.classList.remove('bg-green-50', 'border-green-500'), false));
@@ -153,21 +147,39 @@
                 tabPaste.classList.remove('active');
                 contentUpload.classList.add('active');
                 contentPaste.classList.remove('active');
-                handleFileSelect({target: fileInput}); // Revalida o botão
+                validateInput();
             } else {
                 tabUpload.classList.remove('active');
                 tabPaste.classList.add('active');
                 contentUpload.classList.remove('active');
                 contentPaste.classList.add('active');
-                handleTextPaste({target: textInput}); // Revalida o botão
+                validateInput();
             }
         }
 
         function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
-        function handleFileSelect(event) { if (event.target.files.length > 0) processFile(event.target.files[0]); else { extractButton.disabled = true; }}
+        function handleFileSelect(event) { if (event.target.files.length > 0) processFile(event.target.files[0]); }
         function handleDrop(event) { if (event.dataTransfer.files.length > 0) { fileInput.files = event.dataTransfer.files; processFile(event.dataTransfer.files[0]); } }
-        function handleTextPaste(event) { if (event.target.value.trim().length > 0) { extractButton.disabled = false; } else { extractButton.disabled = true; }}
-        function processFile(file) { lastFileName = file.name; extractButton.disabled = false; errorMessage.classList.add('hidden'); }
+        function handleTextInput() { validateInput(); }
+        
+        function validateInput() {
+            let isValid = false;
+            if (currentMode === 'upload' && fileInput.files.length > 0) {
+                isValid = true;
+            } else if (currentMode === 'paste' && textInput.value.trim().length > 0) {
+                isValid = true;
+            }
+            extractButton.disabled = !isValid;
+        }
+
+        function processFile(file) {
+            lastFileName = file.name;
+            fileNameDisplay.textContent = file.name;
+            uploadInitialState.classList.add('hidden');
+            uploadDoneState.classList.remove('hidden');
+            validateInput();
+            errorMessage.classList.add('hidden');
+        }
         
         function resetUI() {
             mainContent.classList.remove('hidden');
@@ -175,13 +187,14 @@
             errorMessage.classList.add('hidden');
             fileInput.value = '';
             textInput.value = '';
-            extractButton.disabled = true;
+            uploadInitialState.classList.remove('hidden');
+            uploadDoneState.classList.add('hidden');
+            validateInput();
         }
 
         async function callBackend() {
             let body;
             let headers = {};
-
             if (currentMode === 'upload') {
                 if (!fileInput.files || fileInput.files.length === 0) { showError('Por favor, selecione um ficheiro primeiro.'); return; }
                 const file = fileInput.files[0];
@@ -195,9 +208,7 @@
                 headers['Content-Type'] = 'application/json';
                 lastFileName = 'texto_colado';
             }
-
             setLoadingState(true);
-
             try {
                 const response = await fetch(BACKEND_URL, { method: 'POST', headers: headers, body: body });
                 const result = await response.json();
