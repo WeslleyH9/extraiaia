@@ -7,7 +7,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         body { font-family: 'Nunito', sans-serif; background-color: #f7fafc; color: #2D3748; display: flex; flex-direction: column; min-height: 100vh; }
         .primary-green-text { color: #2F855A; }
@@ -75,7 +74,6 @@
                 </div>
                 <div class="mt-6 flex flex-wrap gap-4 items-center">
                     <button id="copyButton" class="bg-gray-200 text-gray-700 hover:bg-gray-300 font-semibold py-2 px-4 rounded-lg flex items-center"><svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>Copiar Resumo</button>
-                    <button id="pdfButton" class="bg-red-500 text-white hover:bg-red-600 font-semibold py-2 px-4 rounded-lg flex items-center"><svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>Exportar PDF</button>
                     <button id="shareButton" class="bg-blue-500 text-white hover:bg-blue-600 font-semibold py-2 px-4 rounded-lg flex items-center"><svg class="w-4 h-4 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg>Compartilhar</button>
                     <button id="newFileButton" class="btn-primary-green font-semibold py-2 px-4 rounded-lg flex items-center ml-auto">Analisar Outro</button>
                 </div>
@@ -97,12 +95,12 @@
         const resultTitle = document.getElementById('resultTitle');
         const summaryContentEl = document.getElementById('summaryContent');
         const copyButton = document.getElementById('copyButton');
-        const pdfButton = document.getElementById('pdfButton');
         const shareButton = document.getElementById('shareButton');
         const newFileButton = document.getElementById('newFileButton');
         const uploadInitialState = document.getElementById('uploadInitialState');
         const uploadDoneState = document.getElementById('uploadDoneState');
         const fileNameDisplay = document.getElementById('fileNameDisplay');
+        const contentToPrint = document.getElementById('contentToPrint');
 
         let lastSummaryText = '';
         let lastFileName = 'resumo';
@@ -118,7 +116,6 @@
         uploadArea.addEventListener('drop', handleDrop, false);
         extractButton.addEventListener('click', callBackend);
         copyButton.addEventListener('click', copyResultsToClipboard);
-        pdfButton.addEventListener('click', exportResultsToPdf);
         newFileButton.addEventListener('click', resetUI);
         shareButton.addEventListener('click', shareResults);
 
@@ -185,69 +182,6 @@
             textArea.select();
             try { document.execCommand('copy'); alert('Resumo copiado para a área de transferência!'); } catch (err) { alert('Não foi possível copiar o resumo.'); }
             document.body.removeChild(textArea);
-        }
-        
-        async function exportResultsToPdf() {
-            if (!lastSummaryText) return;
-            setLoadingState(true);
-            const originalButtonText = pdfButton.innerHTML;
-            pdfButton.innerHTML = 'A gerar PDF...';
-            
-            try {
-                const { jsPDF } = window.jspdf;
-                const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-
-                // Converter o Markdown em texto simples, tentando preservar a estrutura
-                const textForPdf = `Resumo de "${lastFileName}"\n` + 
-                                 '--------------------------------------------------\n\n' +
-                                 lastSummaryText
-                                    .replace(/### (.*)/g, '\n\n$1\n--------------------------\n')
-                                    .replace(/## (.*)/g, '\n\n$1\n==========================\n')
-                                    .replace(/# (.*)/g, '\n\n$1\n==========================\n')
-                                    .replace(/\* \s*(.*)/g, '\n  - $1')
-                                    .replace(/`([^`]+)`/g, '$1')
-                                    .replace(/\*\*(.*)\*\*/g, '$1')
-                                    .replace(/__(.*)__/g, '$1');
-
-                const margin = 40;
-                const pageWidth = doc.internal.pageSize.getWidth();
-                const pageHeight = doc.internal.pageSize.getHeight();
-                const contentWidth = pageWidth - (2 * margin);
-                let y = margin;
-
-                doc.setFont('helvetica', 'normal');
-                doc.setFontSize(10);
-
-                const lines = doc.splitTextToSize(textForPdf, contentWidth);
-
-                lines.forEach(line => {
-                    if (y + 10 > pageHeight - margin) { // Verifica se precisa de uma nova página
-                        doc.addPage();
-                        y = margin; // Reseta a posição y para a margem superior
-                    }
-                    doc.text(line, margin, y);
-                    y += 12; // Avança a linha (altura da fonte + espaçamento)
-                });
-                
-                // Adiciona o rodapé em todas as páginas
-                const pageCount = doc.internal.getNumberOfPages();
-                for(let i = 1; i <= pageCount; i++) {
-                    doc.setPage(i);
-                    doc.setFontSize(8);
-                    doc.setTextColor(150);
-                    doc.text(`Extraído com Extraia.ai - ${new Date().toLocaleDateString()}`, margin, pageHeight - 20);
-                }
-
-                doc.save(`resumo-${lastFileName.replace(/\.[^/.]+$/, "")}.pdf`);
-            } catch(e) {
-                console.error("Erro ao gerar PDF:", e);
-                showError("Ocorreu um erro ao gerar o PDF.");
-            } finally {
-                setLoadingState(false);
-                mainContent.classList.add('hidden');
-                resultDisplayContainer.classList.remove('hidden');
-                pdfButton.innerHTML = originalButtonText;
-            }
         }
         
         async function shareResults() {
