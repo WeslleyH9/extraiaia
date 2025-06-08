@@ -6,7 +6,6 @@ import extractPdfText from 'pdf-text-extract';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // --- Configuração da API do Gemini ---
-// Pega a chave da API das variáveis de ambiente do Render.com
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 if (!GEMINI_API_KEY) {
     console.error("[FATAL] A variável de ambiente GEMINI_API_KEY não está definida!");
@@ -28,7 +27,7 @@ async function extractTextFromPdf(filePath) {
         extractPdfText(filePath, (err, pages) => {
             if (err) {
                 console.error("[ERROR] pdf-text-extract:", err);
-                return reject(new Error("Falha ao processar PDF."));
+                return reject(new Error("Falha ao processar PDF com pdf-text-extract."));
             }
             resolve(pages.join("\n\n"));
         });
@@ -37,15 +36,12 @@ async function extractTextFromPdf(filePath) {
 
 // Função que chama o Gemini para extrair dados estruturados
 async function getStructuredDataFromText(text) {
-    // Truncar o texto para não exceder os limites da API
-    const truncatedText = text.substring(0, 900000); // Limite generoso
+    const truncatedText = text.substring(0, 900000); 
     
-    // O prompt que instrui a IA sobre o que fazer
     const prompt = `
       Você é um especialista em analisar documentos como editais de concurso, vestibulares e currículos.
       Analise o texto a seguir e extraia as informações mais importantes.
-      Responda APENAS com um objeto JSON. Não inclua texto antes ou depois do JSON.
-      Se uma informação não for encontrada, retorne null para o seu valor.
+      Responda APENAS com um objeto JSON. Não inclua texto ou marcadores de formatação como \`\`\`json antes ou depois do objeto JSON.
 
       O formato do JSON deve ser:
       {
@@ -75,9 +71,17 @@ async function getStructuredDataFromText(text) {
 
     // Tenta limpar e analisar a resposta JSON
     try {
-        // Remove possíveis acentos graves ou marcadores de código do início e fim
-        const cleanedJsonText = jsonText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+        // CORREÇÃO: Lógica mais robusta para limpar a resposta da IA
+        const startIndex = jsonText.indexOf('{');
+        const endIndex = jsonText.lastIndexOf('}');
+        
+        if (startIndex === -1 || endIndex === -1) {
+            throw new Error("Não foi possível encontrar um objeto JSON na resposta da IA.");
+        }
+        
+        const cleanedJsonText = jsonText.substring(startIndex, endIndex + 1);
         const structuredData = JSON.parse(cleanedJsonText);
+
         console.log("[SUCCESS] Resposta do Gemini analisada como JSON.");
         return structuredData;
     } catch (e) {
@@ -128,12 +132,11 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: "Não foi possível extrair texto do documento." });
         }
 
-        // AGORA, CHAMAMOS A IA COM O TEXTO EXTRAÍDO
         const structuredData = await getStructuredDataFromText(extractedText);
 
         res.status(200).json({
             message: `Arquivo "${originalFilename}" analisado pela IA com sucesso!`,
-            structuredData: structuredData // Enviamos os dados estruturados para o frontend
+            structuredData: structuredData
         });
 
     } catch (error) {
