@@ -25,7 +25,24 @@ async function extractTextFromPdf(filePath) {
 }
 async function getIntelligentSummaryFromText(text) {
     const truncatedText = text.substring(0, 900000); 
-    const prompt = `Você é um especialista em análise de textos e resumo. Sua tarefa é ler o texto a seguir e extrair os pontos-chave, as ideias principais e as informações mais importantes. O objetivo é criar um resumo conciso e de fácil entendimento que capture a essência do documento. Instruções: Identifique o tema principal e os subtemas. Extraia dados cruciais como nomes, datas, locais, valores, conclusões ou ações necessárias. Apresente o resultado usando formatação Markdown para clareza (títulos, listas com marcadores, negrito). Se uma seção contém detalhes muito extensos (como tabelas), resuma sua finalidade principal em uma ou duas frases. NÃO crie um título de seção se você não tem informações para colocar abaixo dele. Seja objetivo. Texto para análise: --- ${truncatedText} ---`;
+    const prompt = `
+      Você é um especialista em análise de textos e resumo. Sua tarefa é ler o texto a seguir e extrair os pontos-chave,
+      as ideias principais e as informações mais importantes. O objetivo é criar um resumo conciso e de fácil entendimento
+      que capture a essência do documento.
+
+      Instruções:
+      1.  **Identifique o Tema Principal:** Comece com um título geral para o documento.
+      2.  **Estruture por Tópicos:** Organize o resumo em seções claras usando títulos Markdown (#, ##, ###).
+      3.  **Extraia Detalhes Cruciais:** Dentro de cada tópico, extraia dados importantes como nomes, datas, locais, valores, conclusões ou ações necessárias. Use listas com marcadores (*) para maior clareza.
+      4.  **SEM PLACEHOLDERS:** Se você encontrar uma seção que contém detalhes muito extensos (como tabelas, longos procedimentos legais, etc.), NÃO use um placeholder como "(detalhado no texto)". Em vez disso, leia a seção e resuma a sua finalidade principal em uma ou duas frases. Por exemplo, para uma seção sobre "Prova de Aptidão Física", escreva algo como: "A prova física avaliará os candidatos em testes de barra fixa, corrida e abdominais. As pontuações variam conforme o desempenho (consulte o documento original para as tabelas de pontuação completas)."
+      5.  **SEM TÓPICOS VAZIOS:** NÃO crie um título de seção se você não tem informações para colocar abaixo dele. Se uma seção do texto original não contém informações relevantes para um resumo, simplesmente omita essa seção.
+      6.  **Seja Objetivo:** Não adicione opiniões ou informações que não estejam no texto.
+      
+      Texto para análise:
+      ---
+      ${truncatedText}
+      ---
+    `;
     const result = await model.generateContent(prompt);
     const response = await result.response;
     return response.text();
