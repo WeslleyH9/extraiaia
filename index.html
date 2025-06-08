@@ -70,8 +70,10 @@
             <div id="errorMessage" class="text-red-600 mt-4 text-sm p-3 bg-red-100 border border-red-400 rounded hidden"></div>
 
             <div id="resultDisplayContainer" class="mt-6 p-6 text-left hidden result-card">
-                <h3 id="resultTitle" class="text-xl font-bold text-gray-800 mb-4 pb-2 border-b"></h3>
-                <div id="summaryContent" class="markdown-content max-h-[60vh] overflow-y-auto pr-2"></div>
+                <div id="contentToPrint">
+                    <h3 id="resultTitle" class="text-xl font-bold text-gray-800 mb-4 pb-2 border-b"></h3>
+                    <div id="summaryContent" class="markdown-content max-h-[60vh] overflow-y-auto pr-2"></div>
+                </div>
                 <div class="mt-6 flex flex-wrap gap-4 items-center">
                     <button id="copyButton" class="bg-gray-200 text-gray-700 hover:bg-gray-300 font-semibold py-2 px-4 rounded-lg flex items-center"><svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>Copiar Resumo</button>
                     <button id="pdfButton" class="bg-red-500 text-white hover:bg-red-600 font-semibold py-2 px-4 rounded-lg flex items-center"><svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>Exportar PDF</button>
@@ -102,6 +104,7 @@
         const uploadInitialState = document.getElementById('uploadInitialState');
         const uploadDoneState = document.getElementById('uploadDoneState');
         const fileNameDisplay = document.getElementById('fileNameDisplay');
+        const contentToPrint = document.getElementById('contentToPrint');
 
         let lastSummaryText = '';
         let lastFileName = 'resumo';
@@ -188,7 +191,6 @@
         
         async function exportResultsToPdf() {
             if (!lastSummaryText) return;
-            // Mostra temporariamente o spinner enquanto prepara o PDF
             setLoadingState(true);
             const originalButtonText = pdfButton.innerHTML;
             pdfButton.innerHTML = 'A gerar PDF...';
@@ -197,63 +199,33 @@
                 const { jsPDF } = window.jspdf;
                 const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
 
-                const source = document.getElementById('summaryContent');
+                const source = document.getElementById('contentToPrint');
                 
-                // Usa html2canvas para renderizar o HTML para uma imagem (canvas)
-                const canvas = await html2canvas(source, {
-                    scale: 2, 
-                    backgroundColor: null,
-                    useCORS: true,
-                    // Garante que o html2canvas capture todo o conteúdo, mesmo o que está fora da vista
-                    height: source.scrollHeight, 
-                    width: source.scrollWidth,
-                    windowHeight: source.scrollHeight,
+                // Usando a API HTML do jsPDF, que usa html2canvas por baixo
+                await pdf.html(source, {
+                    callback: function (doc) {
+                        // Adiciona o rodapé em todas as páginas após a renderização
+                        const pageCount = doc.internal.getNumberOfPages();
+                        for(let i = 1; i <= pageCount; i++) {
+                            doc.setPage(i);
+                            doc.setFontSize(8);
+                            doc.setTextColor(150);
+                            doc.text(`Extraído com Extraia.ai - ${new Date().toLocaleDateString()}`, 40, doc.internal.pageSize.getHeight() - 20);
+                        }
+                        doc.save(`resumo-${lastFileName.replace(/\.[^/.]+$/, "")}.pdf`);
+                    },
+                    margin: [40, 40, 40, 40],
+                    autoPaging: 'text', // Tenta quebrar as páginas de forma inteligente
+                    width: 515, // Largura A4 em pontos (595.28) - margens (40+40)
                     windowWidth: source.scrollWidth
                 });
 
-                const imgData = canvas.toDataURL('image/png');
-                const imgProps = pdf.getImageProperties(imgData);
-                const pdfWidth = pdf.internal.pageSize.getWidth();
-                const pdfHeight = pdf.internal.pageSize.getHeight();
-                
-                const margin = 40;
-                const contentWidth = pdfWidth - (2 * margin);
-                const imgHeight = (imgProps.height * contentWidth) / imgProps.width;
-                
-                let heightLeft = imgHeight;
-                let position = margin + 30; // Posição vertical inicial
-
-                pdf.setFont('helvetica', 'bold');
-                pdf.setFontSize(16);
-                pdf.text(`Resumo de "${lastFileName}"`, margin, position);
-                position += 30;
-
-                // Adiciona a imagem, que será "puxada para cima" a cada nova página
-                pdf.addImage(imgData, 'PNG', margin, position, contentWidth, imgHeight);
-                heightLeft -= (pdfHeight - position - margin);
-
-                while (heightLeft > 0) {
-                    position -= (pdfHeight - (margin * 2)); // Puxa a imagem para cima na nova página
-                    pdf.addPage();
-                    pdf.addImage(imgData, 'PNG', margin, position, contentWidth, imgHeight);
-                    heightLeft -= pdfHeight;
-                }
-                
-                const pageCount = pdf.internal.getNumberOfPages();
-                for(let i = 1; i <= pageCount; i++) {
-                    pdf.setPage(i);
-                    pdf.setFontSize(8);
-                    pdf.setTextColor(150);
-                    pdf.text(`Extraído com Extraia.ai - ${new Date().toLocaleDateString()}`, margin, pdfHeight - 20);
-                }
-
-                pdf.save(`resumo-${lastFileName.replace(/\.[^/.]+$/, "")}.pdf`);
             } catch(e) {
                 console.error("Erro ao gerar PDF:", e);
                 showError("Ocorreu um erro ao gerar o PDF.");
             } finally {
                 setLoadingState(false);
-                mainContent.classList.add('hidden'); // Garante que a tela de resultados continue visível
+                mainContent.classList.add('hidden');
                 resultDisplayContainer.classList.remove('hidden');
                 pdfButton.innerHTML = originalButtonText;
             }
@@ -272,9 +244,10 @@
             } else {
                 navigator.clipboard.writeText(window.location.href).then(() => {
                     const originalText = shareButton.innerHTML;
-                    shareButton.innerHTML = 'Link Copiado!';
+                    const originalSVG = shareButton.querySelector('svg').outerHTML;
+                    shareButton.textContent = 'Link Copiado!';
                     setTimeout(() => {
-                        shareButton.innerHTML = originalText;
+                        shareButton.innerHTML = originalSVG + 'Compartilhar';
                     }, 2000);
                 });
             }
