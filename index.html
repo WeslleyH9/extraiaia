@@ -214,27 +214,29 @@
                 const imgData = canvas.toDataURL('image/png');
                 const imgProps = pdf.getImageProperties(imgData);
                 const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = pdf.internal.pageSize.getHeight();
                 
                 const margin = 40;
                 const contentWidth = pdfWidth - (2 * margin);
                 const imgHeight = (imgProps.height * contentWidth) / imgProps.width;
                 
                 let heightLeft = imgHeight;
-                let position = margin;
+                let position = margin + 30; // Posição vertical inicial
 
                 pdf.setFont('helvetica', 'bold');
                 pdf.setFontSize(16);
                 pdf.text(`Resumo de "${lastFileName}"`, margin, position);
                 position += 30;
 
+                // Adiciona a imagem, que será "puxada para cima" a cada nova página
                 pdf.addImage(imgData, 'PNG', margin, position, contentWidth, imgHeight);
-                heightLeft -= (pdf.internal.pageSize.getHeight() - position - margin);
+                heightLeft -= (pdfHeight - position - margin);
 
                 while (heightLeft > 0) {
-                    position = -imgHeight + position + pdf.internal.pageSize.getHeight() - margin;
+                    position -= (pdfHeight - (margin * 2)); // Puxa a imagem para cima na nova página
                     pdf.addPage();
                     pdf.addImage(imgData, 'PNG', margin, position, contentWidth, imgHeight);
-                    heightLeft -= pdf.internal.pageSize.getHeight();
+                    heightLeft -= pdfHeight;
                 }
                 
                 const pageCount = pdf.internal.getNumberOfPages();
@@ -242,7 +244,7 @@
                     pdf.setPage(i);
                     pdf.setFontSize(8);
                     pdf.setTextColor(150);
-                    pdf.text(`Extraído com Extraia.ai - ${new Date().toLocaleDateString()}`, margin, pdf.internal.pageSize.getHeight() - 20);
+                    pdf.text(`Extraído com Extraia.ai - ${new Date().toLocaleDateString()}`, margin, pdfHeight - 20);
                 }
 
                 pdf.save(`resumo-${lastFileName.replace(/\.[^/.]+$/, "")}.pdf`);
