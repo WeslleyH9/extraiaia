@@ -1,288 +1,129 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Extraia.ai - A sua IA para Decifrar Documentos</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <style>
-        body { font-family: 'Nunito', sans-serif; background-color: #f7fafc; color: #2D3748; display: flex; flex-direction: column; min-height: 100vh; }
-        .primary-green-text { color: #2F855A; }
-        .tab { cursor: pointer; padding: 0.75rem 1.5rem; border-bottom: 3px solid transparent; transition: all 0.2s; color: #718096; }
-        .tab.active { color: #2F855A; border-bottom-color: #2F855A; font-weight: 700; }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-        .upload-box-border { border-color: #B2F5EA; }
-        .upload-box-hover:hover { background-color: #f0fdfa; border-color: #38A169; }
-        .btn-primary-green { background-color: #2F855A; color: white; transition: background-color 0.2s ease-in-out; }
-        .btn-primary-green:hover:not(:disabled) { background-color: #276749; }
-        .btn-primary-green:disabled { background-color: #9AE6B4; opacity: 0.7; cursor: not-allowed; }
-        .logo-icon svg { width: 32px; height: 32px; margin-right: 8px; }
-        .logo-text { font-size: 1.75rem; font-weight: 700; color: #2D3748; }
-        .logo-text .ai { color: #2F855A; font-weight: 700; }
-        .result-card { background-color: white; border: 1px solid #E2E8F0; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.05); }
-        .markdown-content { line-height: 1.6; }
-        .markdown-content h1, .markdown-content h2, .markdown-content h3 { font-weight: 700; color: #2c5282; margin-top: 1em; margin-bottom: 0.5em; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.25em; }
-        .markdown-content h1 { font-size: 1.5rem; }
-        .markdown-content h2 { font-size: 1.25rem; }
-        .markdown-content h3 { font-size: 1.1rem; }
-        .markdown-content p { margin-bottom: 0.75em; }
-        .markdown-content ul, .markdown-content ol { list-style-position: inside; margin-left: 1em; margin-bottom: 0.75em; }
-        .markdown-content li { margin-bottom: 0.25em; }
-        .markdown-content strong { color: #2D3748; }
-        .markdown-content blockquote { border-left: 4px solid #718096; padding-left: 1em; color: #4A5568; font-style: italic; background-color: #f7fafc; }
-    </style>
-</head>
-<body>
+// api/extract.js
+import formidable from 'formidable';
+import fs from 'fs/promises';
+import mammoth from 'mammoth';
+import extractPdfText from 'pdf-text-extract';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
-    <header class="py-6 px-4 sm:px-6 lg:px-8 w-full">
-        <div class="max-w-6xl mx-auto flex items-center">
-            <div class="flex items-center logo-icon">
-                <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><path d="M20,10 L80,10 L80,70 L60,90 L40,90 L20,70 Z" fill="#E6FFFA" stroke="#2F855A" stroke-width="3"/><path d="M30,10 L30,50 M70,10 L70,50" fill="none" stroke="#B2F5EA" stroke-width="2" stroke-dasharray="3,3"/><path d="M25,60 L75,60" fill="none" stroke="#2F855A" stroke-width="5"/></svg>
-                <span class="logo-text">Extraia<span class="ai">.ai</span></span>
-            </div>
-        </div>
-    </header>
+// --- Configuração da API do Gemini ---
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+if (!GEMINI_API_KEY) {
+    console.error("[FATAL] A variável de ambiente GEMINI_API_KEY não está definida!");
+}
+const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest"});
+// --- Fim da Configuração ---
 
-    <main class="flex-grow flex flex-col items-center justify-center text-center px-4 py-12">
-        <div class="max-w-3xl w-full">
-            <div id="mainContent">
-                <h1 class="text-3xl sm:text-4xl font-bold primary-green-text mb-6">A sua inteligência artificial para decifrar documentos.</h1>
+// --- Funções Auxiliares (sem mudanças) ---
+async function extractTextFromPdf(filePath) {
+    return new Promise((resolve, reject) => {
+        extractPdfText(filePath, (err, pages) => {
+            if (err) return reject(new Error("Falha ao processar PDF com pdf-text-extract."));
+            resolve(pages.join("\n\n"));
+        });
+    });
+}
+async function getIntelligentSummaryFromText(text) {
+    const truncatedText = text.substring(0, 900000); 
+    const prompt = `Add commentMore actions
+      Você é um especialista em análise de textos e resumo. Sua tarefa é ler o texto a seguir e extrair os pontos-chave,
+      as ideias principais e as informações mais importantes. O objetivo é criar um resumo conciso e de fácil entendimento
+      que capture a essência do documento.
 
-                <div class="mb-4 border-b border-gray-200"><nav class="flex -mb-px" aria-label="Tabs"><button id="tabUpload" class="tab active">Enviar Ficheiro</button><button id="tabPaste" class="tab">Colar Texto</button></nav></div>
+      Instruções:
+      1.  **Identifique o Tema Principal:** Comece com um título geral para o documento.
+      2.  **Estruture por Tópicos:** Organize o resumo em seções claras usando títulos Markdown (#, ##, ###).
+      3.  **Extraia Detalhes Cruciais:** Dentro de cada tópico, extraia dados importantes como nomes, datas, locais, valores, conclusões ou ações necessárias. Use listas com marcadores (*) para maior clareza.
+      4.  **SEM PLACEHOLDERS:** Se você encontrar uma seção que contém detalhes muito extensos (como tabelas, longos procedimentos legais, etc.), NÃO use um placeholder como "(detalhado no texto)". Em vez disso, leia a seção e resuma a sua finalidade principal em uma ou duas frases. Por exemplo, para uma seção sobre "Prova de Aptidão Física", escreva algo como: "A prova física avaliará os candidatos em testes de barra fixa, corrida e abdominais. As pontuações variam conforme o desempenho (consulte o documento original para as tabelas de pontuação completas)."
+      5.  **SEM TÓPICOS VAZIOS:** NÃO crie um título de seção se você não tem informações para colocar abaixo dele. Se uma seção do texto original não contém informações relevantes para um resumo, simplesmente omita essa seção.
+      6.  **Seja Objetivo:** Não adicione opiniões ou informações que não estejam no texto.
+      
+      Texto para análise:
+      ---
+      ${truncatedText}
+      ---
+    `;
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    return response.text();
+}
+// --- Fim das Funções Auxiliares ---
 
-                <div id="contentUpload" class="tab-content active">
-                    <div id="uploadArea" class="upload-box-border upload-box-hover border-2 dashed rounded-lg p-8 sm:p-12 flex flex-col items-center justify-center cursor-pointer mb-2 min-h-[200px] transition-colors">
-                        <div id="uploadInitialState">
-                            <svg class="w-16 h-16 text-gray-400 mb-4 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>
-                            <p class="text-lg text-gray-600 mb-2">Arraste o seu ficheiro para cá ou clique para selecionar.</p>
-                        </div>
-                        <div id="uploadDoneState" class="hidden text-center">
-                            <svg class="w-16 h-16 text-green-500 mb-4 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            <p id="fileNameDisplay" class="text-lg font-semibold text-gray-700"></p>
-                            <p class="text-sm text-gray-500 mt-1">Ficheiro pronto! Clique em "Extrair Agora".</p>
-                        </div>
-                        <input type="file" id="fileInput" class="hidden" accept=".pdf,.doc,.docx,.txt">
-                    </div>
-                    <p class="text-sm text-gray-500 mt-2">Formatos aceites: PDF, DOCX, DOC, TXT</p>
-                </div>
-                
-                <div id="contentPaste" class="tab-content"><textarea id="textInput" class="w-full h-48 p-4 border-2 border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500 transition" placeholder="Cole aqui o seu texto..."></textarea></div>
-                
-                <button id="extractButton" class="btn-primary-green font-semibold py-3 px-8 rounded-lg text-lg shadow-md mt-8" disabled>Extrair Agora!</button>
-            </div>
+
+// A Vercel (onde nosso frontend está) precisa que o body seja analisado.
+// O Render lida com isso através do middleware no server.js, mas na Vercel, a configuração é por função.
+// Como nosso backend agora está no Render, esta configuração não é mais necessária aqui, mas não atrapalha.
+export const config = {
+    api: {
+        bodyParser: true, // Habilitar para aceitar JSON do input de texto
+    },
+};
+
+export default async function handler(req, res) {
+    if (req.method !== 'POST') {
+        res.setHeader('Allow', ['POST']);
+        return res.status(405).end(`Method ${req.method} Not Allowed`);
+    }
+    
+    if (!GEMINI_API_KEY) {
+        return res.status(500).json({ error: "A chave da API do servidor não está configurada."});
+    }
+
+    let textToProcess = '';
+    let originalFilename = 'texto colado';
+
+    try {
+        // Verifica se o request é 'multipart/form-data' (upload de arquivo) ou 'application/json' (texto colado)
+        if (req.headers['content-type']?.includes('multipart/form-data')) {
+            console.log("[INFO] Recebendo upload de arquivo...");
+            const form = formidable({});
+            const [fields, files] = await form.parse(req);
             
-            <div id="loadingSpinner" class="mt-4 hidden"><svg class="animate-spin h-8 w-8 text-green-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><p class="text-sm text-gray-600 mt-2">A decifrar o seu documento... (Isto pode levar até 30s no primeiro uso)</p></div>
-            <div id="errorMessage" class="text-red-600 mt-4 text-sm p-3 bg-red-100 border border-red-400 rounded hidden"></div>
+            if (!files.document || files.document.length === 0) {
+                return res.status(400).json({ error: "Nenhum arquivo enviado." });
+            }
 
-            <div id="resultDisplayContainer" class="mt-6 p-6 text-left hidden result-card">
-                <h3 id="resultTitle" class="text-xl font-bold text-gray-800 mb-4 pb-2 border-b"></h3>
-                <div id="summaryContent" class="markdown-content max-h-[60vh] overflow-y-auto pr-2"></div>
-                <div class="mt-6 flex flex-wrap gap-4 items-center">
-                    <button id="copyButton" class="bg-gray-200 text-gray-700 hover:bg-gray-300 font-semibold py-2 px-4 rounded-lg flex items-center"><svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>Copiar Resumo</button>
-                    <button id="pdfButton" class="bg-red-500 text-white hover:bg-red-600 font-semibold py-2 px-4 rounded-lg flex items-center"><svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>Exportar PDF</button>
-                    <button id="shareButton" class="bg-blue-500 text-white hover:bg-blue-600 font-semibold py-2 px-4 rounded-lg flex items-center"><svg class="w-4 h-4 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg>Compartilhar</button>
-                    <button id="newFileButton" class="btn-primary-green font-semibold py-2 px-4 rounded-lg flex items-center ml-auto">Analisar Outro</button>
-                </div>
-            </div>
-        </div>
-    </main>
+            const uploadedFile = files.document[0];
+            const tempFilePath = uploadedFile.filepath; 
+            originalFilename = uploadedFile.originalFilename;
+            const mimeType = uploadedFile.mimetype;
+            console.log(`[INFO] Arquivo recebido: ${originalFilename}, Tipo: ${mimeType}`);
 
-    <footer class="py-6 px-4 sm:px-6 lg:px-8 w-full mt-auto"><div class="max-w-6xl mx-auto text-center sm:flex sm:justify-between sm:text-left"><div class="mb-2 sm:mb-0"><a href="mailto:iaextraia@gmail.com" class="text-sm text-gray-500 hover:text-gray-700 transition-colors">Contato</a></div><p class="text-sm text-gray-500">&copy; <span id="currentYear"></span> Extraia.ai</p></div></footer>
-
-    <script>
-        document.getElementById('currentYear').textContent = new Date().getFullYear();
-        const tabUpload = document.getElementById('tabUpload');
-        const tabPaste = document.getElementById('tabPaste');
-        const contentUpload = document.getElementById('contentUpload');
-        const contentPaste = document.getElementById('contentPaste');
-        const uploadArea = document.getElementById('uploadArea');
-        const fileInput = document.getElementById('fileInput');
-        const textInput = document.getElementById('textInput');
-        const extractButton = document.getElementById('extractButton');
-        const mainContent = document.getElementById('mainContent');
-        const loadingSpinner = document.getElementById('loadingSpinner');
-        const errorMessage = document.getElementById('errorMessage');
-        const resultDisplayContainer = document.getElementById('resultDisplayContainer');
-        const resultTitle = document.getElementById('resultTitle');
-        const summaryContentEl = document.getElementById('summaryContent');
-        const copyButton = document.getElementById('copyButton');
-        const pdfButton = document.getElementById('pdfButton');
-        const shareButton = document.getElementById('shareButton');
-        const newFileButton = document.getElementById('newFileButton');
-        const uploadInitialState = document.getElementById('uploadInitialState');
-        const uploadDoneState = document.getElementById('uploadDoneState');
-        const fileNameDisplay = document.getElementById('fileNameDisplay');
-
-        let lastSummaryText = '';
-        let lastFileName = 'resumo';
-        let currentMode = 'upload';
-        
-        const BACKEND_URL = 'https://extraiaia.onrender.com/api/extract';
-
-        // --- Event Listeners ---
-        tabUpload.addEventListener('click', () => switchTab('upload'));
-        tabPaste.addEventListener('click', () => switchTab('paste'));
-        uploadArea.addEventListener('click', () => fileInput.click());
-        fileInput.addEventListener('change', handleFileSelect);
-        textInput.addEventListener('input', handleTextInput);
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(e => { document.body.addEventListener(e, preventDefaults, false); uploadArea.addEventListener(e, preventDefaults, false); });
-        ['dragenter', 'dragover'].forEach(e => uploadArea.addEventListener(e, () => uploadArea.classList.add('bg-green-50', 'border-green-500'), false));
-        ['dragleave', 'drop'].forEach(e => uploadArea.addEventListener(e, () => uploadArea.classList.remove('bg-green-50', 'border-green-500'), false));
-        uploadArea.addEventListener('drop', handleDrop, false);
-        extractButton.addEventListener('click', callBackend);
-        copyButton.addEventListener('click', copyResultsToClipboard);
-        pdfButton.addEventListener('click', exportResultsToPdf);
-        newFileButton.addEventListener('click', resetUI);
-        shareButton.addEventListener('click', shareResults);
-
-        // --- Funções ---
-        function switchTab(mode) {
-            currentMode = mode;
-            if (mode === 'upload') {
-                tabUpload.classList.add('active');
-                tabPaste.classList.remove('active');
-                contentUpload.classList.add('active');
-                contentPaste.classList.remove('active');
-                validateInput();
+            if (mimeType === 'application/pdf') {
+                textToProcess = await extractTextFromPdf(tempFilePath);
+            } else if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+                const result = await mammoth.extractRawText({ path: tempFilePath });
+                textToProcess = result.value;
+            } else if (mimeType === 'text/plain') {
+                textToProcess = await fs.readFile(tempFilePath, 'utf8');
             } else {
-                tabUpload.classList.remove('active');
-                tabPaste.classList.add('active');
-                contentUpload.classList.remove('active');
-                contentPaste.classList.add('active');
-                validateInput();
+                return res.status(400).json({ error: `Formato de arquivo não suportado.` });
             }
-        }
+            // Deleta o arquivo temporário
+            await fs.unlink(tempFilePath).catch(err => console.error("[ERROR] Falha ao deletar arquivo temporário:", err));
 
-        function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
-        function handleFileSelect(event) { if (event.target.files.length > 0) processFile(event.target.files[0]); }
-        function handleDrop(event) { if (event.dataTransfer.files.length > 0) { fileInput.files = event.dataTransfer.files; processFile(event.dataTransfer.files[0]); } }
-        function handleTextInput() { validateInput(); }
-        
-        function validateInput() {
-            let isValid = false;
-            if (currentMode === 'upload' && fileInput.files.length > 0) {
-                isValid = true;
-            } else if (currentMode === 'paste' && textInput.value.trim().length > 0) {
-                isValid = true;
-            }
-            extractButton.disabled = !isValid;
-        }
+        } else if (req.body && req.body.text) {
+            console.log("[INFO] Recebendo texto colado...");
+            textToProcess = req.body.text;
 
-        function processFile(file) {
-            lastFileName = file.name;
-            fileNameDisplay.textContent = file.name;
-            uploadInitialState.classList.add('hidden');
-            uploadDoneState.classList.remove('hidden');
-            validateInput();
-            errorMessage.classList.add('hidden');
+        } else {
+            return res.status(400).json({ error: "Nenhum arquivo ou texto foi enviado." });
         }
         
-        function resetUI() {
-            mainContent.classList.remove('hidden');
-            resultDisplayContainer.classList.add('hidden');
-            errorMessage.classList.add('hidden');
-            fileInput.value = '';
-            textInput.value = '';
-            uploadInitialState.classList.remove('hidden');
-            uploadDoneState.classList.add('hidden');
-            validateInput();
+        if (!textToProcess || !textToProcess.trim()) {
+            return res.status(400).json({ error: "O documento ou texto parece estar vazio." });
         }
 
-        async function callBackend() {
-            let body;
-            let headers = {};
-            if (currentMode === 'upload') {
-                if (!fileInput.files || fileInput.files.length === 0) { showError('Por favor, selecione um ficheiro primeiro.'); return; }
-                const file = fileInput.files[0];
-                const formData = new FormData();
-                formData.append('document', file);
-                body = formData;
-                lastFileName = file.name;
-            } else {
-                if (textInput.value.trim().length === 0) { showError('Por favor, cole algum texto na caixa.'); return; }
-                body = JSON.stringify({ text: textInput.value });
-                headers['Content-Type'] = 'application/json';
-                lastFileName = 'texto_colado';
-            }
-            setLoadingState(true);
-            try {
-                const response = await fetch(BACKEND_URL, { method: 'POST', headers: headers, body: body });
-                const result = await response.json();
-                if (!response.ok) throw new Error(result.error || result.details || `Erro do servidor: ${response.status}`);
-                lastSummaryText = result.summary;
-                displaySummary(result.summary, lastFileName);
-            } catch (error) {
-                console.error("Erro na chamada ao backend:", error);
-                showError(`Erro: ${error.message}`);
-            } finally {
-                setLoadingState(false);
-            }
-        }
+        // AGORA, CHAMAMOS A IA COM O TEXTO OBTIDO
+        const intelligentSummary = await getIntelligentSummaryFromText(textToProcess);
 
-        function displaySummary(summary, fileName) {
-            if (!summary) { showError("A IA não conseguiu retornar um resumo do documento."); return; }
-            mainContent.classList.add('hidden');
-            resultTitle.textContent = `Pontos-Chave Extraídos de "${fileName}"`;
-            summaryContentEl.innerHTML = marked.parse(summary); 
-            resultDisplayContainer.classList.remove('hidden');
-        }
+        res.status(200).json({
+            message: `Documento "${originalFilename}" analisado pela IA com sucesso!`,
+            summary: intelligentSummary
+        });
 
-        function copyResultsToClipboard() {
-            if (!lastSummaryText) return;
-            const textToCopy = `Resumo de "${lastFileName}" (Extraído com Extraia.ai):\n\n${lastSummaryText}`;
-            const textArea = document.createElement("textarea");
-            textArea.value = textToCopy.trim();
-            document.body.appendChild(textArea);
-            textArea.select();
-            try { document.execCommand('copy'); alert('Resumo copiado para a área de transferência!'); } catch (err) { alert('Não foi possível copiar o resumo.'); }
-            document.body.removeChild(textArea);
-        }
-        
-        async function exportResultsToPdf() {
-            if (!lastSummaryText) return;
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(16);
-            doc.text(`Resumo de "${lastFileName}"`, 40, 40);
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(11);
-            const textForPdf = lastSummaryText.replace(/### (.*)/g, '\n\n$1\n--------------------------\n').replace(/## (.*)/g, '\n\n$1\n==========================\n').replace(/# (.*)/g, '\n\n$1\n==========================\n').replace(/\* \s*(.*)/g, '\n  - $1').replace(/`([^`]+)`/g, '$1').replace(/\*\*(.*)\*\*/g, '$1').replace(/__(.*)__/g, '$1');
-            const splitText = doc.splitTextToSize(textForPdf, 500);
-            doc.text(splitText, 40, 70);
-            doc.setFontSize(8);
-            doc.setTextColor(150);
-            doc.text(`Extraído com Extraia.ai - ${new Date().toLocaleDateString()}`, 40, 820);
-            doc.save(`resumo-${lastFileName.replace(/\.[^/.]+$/, "")}.pdf`);
-        }
-        
-        async function shareResults() {
-            if (!lastSummaryText) return;
-            const shareData = { title: `Resumo de "${lastFileName}"`, text: `Confira o resumo que fiz com o Extraia.ai:\n\n${lastSummaryText.substring(0, 200)}...`, url: window.location.href };
-            if (navigator.share) {
-                try { await navigator.share(shareData); } catch (err) { console.error('Erro ao compartilhar:', err); }
-            } else {
-                navigator.clipboard.writeText(window.location.href).then(() => {
-                    alert('A função de partilha nativa não está disponível. O link da página foi copiado para a sua área de transferência!');
-                });
-            }
-        }
-
-        function setLoadingState(isLoading) {
-            mainContent.classList.add(isLoading ? 'hidden' : 'block');
-            mainContent.classList.remove(isLoading ? 'block' : 'hidden');
-            loadingSpinner.classList.add(isLoading ? 'block' : 'hidden');
-            loadingSpinner.classList.remove(isLoading ? 'hidden' : 'block');
-        }
-        
-        function showError(message) {
-            errorMessage.textContent = message;
-            errorMessage.classList.remove('hidden');
-        }
-    </script>
-</body>
-</html>
+    } catch (error) {
+        console.error('[ERROR] Erro geral no handler:', error);
+        res.status(500).json({ error: "Erro no servidor ao processar o seu pedido.", details: error.message || String(error) });
+    }
+}
