@@ -103,7 +103,6 @@
         const uploadInitialState = document.getElementById('uploadInitialState');
         const uploadDoneState = document.getElementById('uploadDoneState');
         const fileNameDisplay = document.getElementById('fileNameDisplay');
-        const contentToPrint = document.getElementById('contentToPrint');
 
         let lastSummaryText = '';
         let lastFileName = 'resumo';
@@ -196,35 +195,56 @@
             
             try {
                 const { jsPDF } = window.jspdf;
-                const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
-                
-                const source = document.getElementById('contentToPrint');
-                
-                // Usa a API HTML do jsPDF, que utiliza html2canvas por baixo, para renderizar o HTML
-                await pdf.html(source, {
-                    callback: function (doc) {
-                        // Adiciona o rodapé em todas as páginas após a renderização
-                        const pageCount = doc.internal.getNumberOfPages();
-                        for(let i = 1; i <= pageCount; i++) {
-                            doc.setPage(i);
-                            doc.setFontSize(8);
-                            doc.setTextColor(150);
-                            doc.text(`Extraído com Extraia.ai - ${new Date().toLocaleDateString()}`, 40, doc.internal.pageSize.getHeight() - 20);
-                        }
-                        doc.save(`resumo-${lastFileName.replace(/\.[^/.]+$/, "")}.pdf`);
-                    },
-                    margin: [40, 40, 40, 40],
-                    autoPaging: 'text', // Tenta quebrar o conteúdo em várias páginas de forma inteligente
-                    width: 515, // Largura A4 em pontos (595.28) - margens (40+40)
-                    windowWidth: source.scrollWidth // Usa a largura real do conteúdo para a renderização
-                });
+                const doc = new jsPDF({ unit: 'pt', format: 'a4' });
 
+                // Converter o Markdown em texto simples, tentando preservar a estrutura
+                const textForPdf = `Resumo de "${lastFileName}"\n` + 
+                                 '--------------------------------------------------\n\n' +
+                                 lastSummaryText
+                                    .replace(/### (.*)/g, '\n\n$1\n--------------------------\n')
+                                    .replace(/## (.*)/g, '\n\n$1\n==========================\n')
+                                    .replace(/# (.*)/g, '\n\n$1\n==========================\n')
+                                    .replace(/\* \s*(.*)/g, '\n  - $1')
+                                    .replace(/`([^`]+)`/g, '$1')
+                                    .replace(/\*\*(.*)\*\*/g, '$1')
+                                    .replace(/__(.*)__/g, '$1');
+
+                const margin = 40;
+                const pageWidth = doc.internal.pageSize.getWidth();
+                const pageHeight = doc.internal.pageSize.getHeight();
+                const contentWidth = pageWidth - (2 * margin);
+                let y = margin;
+
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(10);
+
+                const lines = doc.splitTextToSize(textForPdf, contentWidth);
+
+                lines.forEach(line => {
+                    if (y + 10 > pageHeight - margin) { // Verifica se precisa de uma nova página
+                        doc.addPage();
+                        y = margin; // Reseta a posição y para a margem superior
+                    }
+                    doc.text(line, margin, y);
+                    y += 12; // Avança a linha (altura da fonte + espaçamento)
+                });
+                
+                // Adiciona o rodapé em todas as páginas
+                const pageCount = doc.internal.getNumberOfPages();
+                for(let i = 1; i <= pageCount; i++) {
+                    doc.setPage(i);
+                    doc.setFontSize(8);
+                    doc.setTextColor(150);
+                    doc.text(`Extraído com Extraia.ai - ${new Date().toLocaleDateString()}`, margin, pageHeight - 20);
+                }
+
+                doc.save(`resumo-${lastFileName.replace(/\.[^/.]+$/, "")}.pdf`);
             } catch(e) {
                 console.error("Erro ao gerar PDF:", e);
                 showError("Ocorreu um erro ao gerar o PDF.");
             } finally {
                 setLoadingState(false);
-                mainContent.classList.add('hidden'); // Garante que a tela de resultados continue visível
+                mainContent.classList.add('hidden');
                 resultDisplayContainer.classList.remove('hidden');
                 pdfButton.innerHTML = originalButtonText;
             }
